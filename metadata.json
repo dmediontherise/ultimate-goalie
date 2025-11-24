@@ -1,0 +1,5 @@
+{
+  "name": "Ultimate Goalie 2D",
+  "description": "A penalty shot hockey game where you play as the goalie. Survive 10 rounds of increasing difficulty against an AI shooter. Features AI-powered commentary between rounds.",
+  "requestFramePermissions": []
+}
