@@ -9,6 +9,7 @@ interface GameCanvasProps {
 }
 
 const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTrickActive, octopusActive }) => {
+  console.log('GameCanvas: Rendering component.');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number>(0);
   const frameCount = useRef<number>(0);
@@ -42,6 +43,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
   
   // Reset state on new round
   useEffect(() => {
+    console.log('GameCanvas: useEffect - New round config. Resetting state.', roundConfig);
     goaliePos.current = { x: 100, y: CANVAS_HEIGHT / 2 };
     shooterPos.current = { x: CANVAS_WIDTH - 100, y: CANVAS_HEIGHT / 2 };
     puckPos.current = { x: CANVAS_WIDTH - 100, y: CANVAS_HEIGHT / 2 };
@@ -58,6 +60,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
   }, [roundConfig]);
 
   useEffect(() => {
+    console.log('GameCanvas: useEffect - hatTrickActive changed to', hatTrickActive);
     if (hatTrickActive && hats.current.length === 0) {
       for (let i = 0; i < 30; i++) {
         hats.current.push({
@@ -71,6 +74,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
   }, [hatTrickActive]);
 
   useEffect(() => {
+    console.log('GameCanvas: useEffect - octopusActive changed to', octopusActive);
     if (octopusActive && !octopusPos.current) {
       octopusPos.current = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
     } else if (!octopusActive) {
@@ -79,10 +83,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
   }, [octopusActive]);
 
   useEffect(() => {
+    console.log('GameCanvas: useEffect - Main effect running. Setting up canvas and game loop.');
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) {
+      console.log('GameCanvas: useEffect - Canvas ref is null. Skipping setup.');
+      return;
+    }
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.log('GameCanvas: useEffect - Could not get 2D context. Skipping setup.');
+      return;
+    }
     
     // --- Drawing ---
     const drawHats = (ctx: CanvasRenderingContext2D) => {
@@ -98,6 +109,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
     const drawOctopus = (ctx: CanvasRenderingContext2D) => {
       if (!octopusPos.current) return;
+      console.log('GameCanvas: drawOctopus - Drawing octopus at', octopusPos.current);
       const { x, y } = octopusPos.current;
       ctx.fillStyle = '#8B0000';
       ctx.beginPath();
@@ -119,6 +131,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     // --- Input Handling ---
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      console.log('GameCanvas: handleKeyDown - Key pressed:', e.code);
       if (roundEnded.current) return; 
       keysPressed.current.add(e.code);
       if (e.code === 'Digit1' || e.code === 'KeyZ') stickPos.current = StickPosition.UP;
@@ -127,24 +140,28 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      console.log('GameCanvas: handleKeyUp - Key released:', e.code);
       keysPressed.current.delete(e.code);
     };
 
     // Touch Drag Logic
     const handleTouchStart = (e: TouchEvent) => {
+      console.log('GameCanvas: handleTouchStart - Touch started.');
       e.preventDefault();
       isDragging.current = true;
       updateGoalieFromTouch(e.touches[0]);
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
       if (isDragging.current && !roundEnded.current) {
+        console.log('GameCanvas: handleTouchMove - Touch moved.');
         updateGoalieFromTouch(e.touches[0]);
       }
+      e.preventDefault();
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
+      console.log('GameCanvas: handleTouchEnd - Touch ended.');
       e.preventDefault();
       isDragging.current = false;
     };
@@ -169,6 +186,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       // Apply constraints immediately
       goaliePos.current.x = Math.max(50, Math.min(140, targetX));
       goaliePos.current.y = Math.max(50, Math.min(CANVAS_HEIGHT - 50, targetY));
+      console.log('GameCanvas: updateGoalieFromTouch - Goalie pos:', goaliePos.current, 'Stick pos:', stickPos.current);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -181,6 +199,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
     const update = () => {
       if (roundEnded.current) return;
+      // console.log('GameCanvas: update - Game loop running. Frame:', frameCount.current); // Too chatty
       frameCount.current++;
 
       // 1. Update Animation State (Fluid Transition)
@@ -220,6 +239,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
         if (shooterPos.current.x < shootThreshold) {
             if (isSlapShot && !windUpStart.current) {
                 windUpStart.current = Date.now();
+                console.log('GameCanvas: update - Shooter windup started.');
             } else if (isSlapShot && windUpStart.current) {
                 if (Date.now() - windUpStart.current > 500) takeShot();
             } else {
@@ -255,6 +275,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       const dx = puckPos.current.x - goaliePos.current.x;
       const dy = puckPos.current.y - goaliePos.current.y;
       if (Math.sqrt(dx*dx + dy*dy) < GOALIE_RADIUS + PUCK_RADIUS) {
+        console.log('GameCanvas: update - Collision detected (body).');
         endRound(true, 'body');
         return;
       }
@@ -270,6 +291,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       const sdx = puckPos.current.x - stickX;
       const sdy = puckPos.current.y - stickY;
       if (Math.sqrt(sdx*sdx + sdy*sdy) < stickRadius + PUCK_RADIUS) {
+          console.log('GameCanvas: update - Collision detected (stick).');
           endRound(true, 'stick'); 
           return;
       }
@@ -279,6 +301,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
             puckPos.current.x < goaliePos.current.x + 35 &&
             puckPos.current.y > goaliePos.current.y - 70 && 
             puckPos.current.y < goaliePos.current.y - 15) {
+            console.log('GameCanvas: update - Collision detected (glove).');
             endRound(true, 'glove');
             return;
         }
@@ -289,6 +312,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
             puckPos.current.x < goaliePos.current.x + 60 &&
             puckPos.current.y > goaliePos.current.y + 10 && 
             puckPos.current.y < goaliePos.current.y + 50) {
+            console.log('GameCanvas: update - Collision detected (butterfly).');
             endRound(true, 'butterfly');
             return;
         }
@@ -296,13 +320,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
       if (puckPos.current.x < GOAL_X + 5) {
         if (puckPos.current.y > GOAL_TOP && puckPos.current.y < GOAL_BOTTOM) {
+          console.log('GameCanvas: update - Goal scored.');
           endRound(false);
         } else {
+            console.log('GameCanvas: update - Puck missed goal (out of bounds).');
             endRound(true, 'miss');
         }
       }
       
       if (puckPos.current.x < 0 || puckPos.current.y < 0 || puckPos.current.y > CANVAS_HEIGHT) {
+          console.log('GameCanvas: update - Puck out of bounds (canvas edge).');
           endRound(true, 'miss');
       }
 
@@ -312,6 +339,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
     const takeShot = () => {
         hasShot.current = true;
+        console.log('GameCanvas: takeShot - AI taking shot.');
         const goalCenter = (GOAL_TOP + GOAL_BOTTOM) / 2;
         let finalTargetY = goalCenter;
         if (roundConfig.aiIntelligence > 0.5) {
@@ -330,15 +358,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
           x: (dx / dist) * roundConfig.shotSpeed,
           y: (dy / dist) * roundConfig.shotSpeed
         };
+        console.log('GameCanvas: takeShot - Puck velocity set to:', puckVel.current);
     }
 
     const endRound = (success: boolean, saveType?: SaveType) => {
+      console.log('GameCanvas: endRound - Round ended. Success:', success, 'SaveType:', saveType);
       roundEnded.current = true;
       onRoundEnd(success, saveType);
     };
 
     // --- Drawing ---
     const drawGoalie = (ctx: CanvasRenderingContext2D, x: number, y: number, stick: StickPosition) => {
+        // console.log('GameCanvas: drawGoalie - Drawing goalie at', x, y, stick); // Too chatty
         const t = stanceLerp.current;
         const breath = Math.sin(frameCount.current * 0.1) * 1.5;
         
@@ -485,6 +516,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     };
 
     const draw = (ctx: CanvasRenderingContext2D) => {
+      console.log('GameCanvas: draw - Drawing frame.');
       ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
       drawHats(ctx);
@@ -523,6 +555,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     update();
 
     return () => {
+      console.log('GameCanvas: useEffect - Cleanup. Removing event listeners and canceling animation frame.');
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       canvas.removeEventListener('touchstart', handleTouchStart);
