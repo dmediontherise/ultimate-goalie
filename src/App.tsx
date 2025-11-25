@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const [octopusActive, setOctopusActive] = useState(false);
   const [magnetActive, setMagnetActive] = useState(false);
   const [commentary, setCommentary] = useState<string>("");
+  const [loadingCommentary, setLoadingCommentary] = useState(false);
 
   const roundConfig: RoundConfig = useMemo(() => {
     // Difficulty progression curve
