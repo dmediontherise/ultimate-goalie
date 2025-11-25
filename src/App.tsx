@@ -48,8 +48,12 @@ const App: React.FC = () => {
   const [gameState, setGameState] = useState<GameState>(GameState.MENU);
   const [currentRound, setCurrentRound] = useState(1);
   const [score, setScore] = useState(0);
+  const [consecutiveAIScores, setConsecutiveAIScores] = useState(0);
+  const [hatTrickActive, setHatTrickActive] = useState(false);
+  const [consecutiveSaves, setConsecutiveSaves] = useState(0);
+  const [octopusActive, setOctopusActive] = useState(false);
+  const [magnetActive, setMagnetActive] = useState(false);
   const [commentary, setCommentary] = useState<string>("");
-  const [loadingCommentary, setLoadingCommentary] = useState(false);
 
   const roundConfig: RoundConfig = useMemo(() => {
     // Difficulty progression curve
@@ -60,6 +64,7 @@ const App: React.FC = () => {
     let curveFactor = ratio > 0.5 ? (ratio - 0.5) * 2 : 0; // Starts curving at round 5
     const isSlapShot = currentRound === 4;
     const hasPowerUp = currentRound === 9;
+    const hasMagnet = currentRound === 5;
 
     // Special Round Logic
     if (isSlapShot) {
@@ -78,7 +83,8 @@ const App: React.FC = () => {
       curveFactor,
       jitter: ratio * 0.8, // Increases erratic movement
       isSlapShot,
-      hasPowerUp
+      hasPowerUp,
+      hasMagnet,
     };
   }, [currentRound]);
   
@@ -97,13 +103,29 @@ const App: React.FC = () => {
     setScore(0);
     setCurrentRound(1);
     setGameState(GameState.PLAYING);
+    setConsecutiveAIScores(0);
+    setHatTrickActive(false);
+    setConsecutiveSaves(0);
+    setOctopusActive(false);
+    setMagnetActive(false);
   };
+
 
   const handleRoundEnd = async (success: boolean, saveType?: SaveType) => {
     if (success) {
+      if (consecutiveSaves === 5) {
+        setOctopusActive(true);
+      }
+      setConsecutiveSaves(prev => prev + 1);
       setScore(prev => prev + 1);
+      setConsecutiveAIScores(0);
       setGameState(GameState.ROUND_WON);
     } else {
+      if (consecutiveAIScores === 2) {
+        setHatTrickActive(true);
+      }
+      setConsecutiveSaves(0);
+      setConsecutiveAIScores(prev => prev + 1);
       setGameState(GameState.ROUND_LOST);
     }
 
@@ -162,6 +184,7 @@ const App: React.FC = () => {
           <div className="absolute top-16 w-full text-center pointer-events-none z-10">
             {roundConfig.isSlapShot && <span className="bg-red-600 text-white px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">⚠️ SLAP SHOT INCOMING</span>}
             {roundConfig.hasPowerUp && <span className="bg-yellow-500 text-black px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">⚡ SUPER SPEED ACTIVE</span>}
+            {roundConfig.hasMagnet && <span className="bg-green-500 text-white px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">🧲 MAGNET ACTIVE</span>}
             {currentRound === 7 && <span className="bg-purple-600 text-white px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">↩️ CURVE BALL</span>}
           </div>
         )}
@@ -181,7 +204,7 @@ const App: React.FC = () => {
 
         {/* Canvas */}
         {(gameState === GameState.PLAYING || gameState === GameState.ROUND_WON || gameState === GameState.ROUND_LOST) && (
-           <GameCanvas roundConfig={roundConfig} onRoundEnd={handleRoundEnd} />
+           <GameCanvas roundConfig={roundConfig} onRoundEnd={handleRoundEnd} hatTrickActive={hatTrickActive} octopusActive={octopusActive} />
         )}
 
         {/* Menu Screen */}

@@ -4,9 +4,11 @@ import { StickPosition, Vector2, RoundConfig, SaveType } from '../types';
 interface GameCanvasProps {
   roundConfig: RoundConfig;
   onRoundEnd: (success: boolean, saveType?: SaveType) => void;
+  hatTrickActive: boolean;
+  octopusActive: boolean;
 }
 
-const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
+const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTrickActive, octopusActive }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationFrameId = useRef<number>(0);
   const frameCount = useRef<number>(0);
@@ -21,6 +23,8 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
   const puckVel = useRef<Vector2>({ x: 0, y: 0 });
   
   const puckTrail = useRef<Vector2[]>([]);
+  const hats = useRef<Vector2[]>([]);
+  const octopusPos = useRef<Vector2 | null>(null);
   const hasShot = useRef<boolean>(false);
   const roundEnded = useRef<boolean>(false);
   const keysPressed = useRef<Set<string>>(new Set());
@@ -54,10 +58,63 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
   }, [roundConfig]);
 
   useEffect(() => {
+    if (hatTrickActive && hats.current.length === 0) {
+      for (let i = 0; i < 30; i++) {
+        hats.current.push({
+          x: Math.random() * CANVAS_WIDTH,
+          y: Math.random() * CANVAS_HEIGHT,
+        });
+      }
+    } else if (!hatTrickActive) {
+      hats.current = [];
+    }
+  }, [hatTrickActive]);
+
+  useEffect(() => {
+    if (octopusActive && !octopusPos.current) {
+      octopusPos.current = { x: CANVAS_WIDTH / 2, y: CANVAS_HEIGHT / 2 };
+    } else if (!octopusActive) {
+      octopusPos.current = null;
+    }
+  }, [octopusActive]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    
+    // --- Drawing ---
+    const drawHats = (ctx: CanvasRenderingContext2D) => {
+      hats.current.forEach(hat => {
+        ctx.fillStyle = '#333';
+        ctx.beginPath();
+        ctx.ellipse(hat.x, hat.y, 15, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#555';
+        ctx.fillRect(hat.x - 10, hat.y - 12, 20, 8);
+      });
+    };
+
+    const drawOctopus = (ctx: CanvasRenderingContext2D) => {
+      if (!octopusPos.current) return;
+      const { x, y } = octopusPos.current;
+      ctx.fillStyle = '#8B0000';
+      ctx.beginPath();
+      ctx.arc(x, y, 30, 0, Math.PI * 2);
+      ctx.fill();
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const legX = x + Math.cos(angle) * 50;
+        const legY = y + Math.sin(angle) * 50;
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = '#8B0000';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(legX, legY);
+        ctx.stroke();
+      }
+    };
 
     // --- Input Handling ---
 
@@ -100,6 +157,14 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
       
       const targetX = (touch.clientX - rect.left) * scaleX;
       const targetY = (touch.clientY - rect.top) * scaleY;
+
+      if (targetY > CANVAS_HEIGHT * 0.66) {
+        stickPos.current = StickPosition.DOWN;
+      } else if (targetY < CANVAS_HEIGHT * 0.33) {
+        stickPos.current = StickPosition.UP;
+      } else {
+        stickPos.current = StickPosition.STRAIGHT;
+      }
 
       // Apply constraints immediately
       goaliePos.current.x = Math.max(50, Math.min(140, targetX));
@@ -163,6 +228,17 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
         }
       } else {
         // Puck Physics
+        if (roundConfig.hasMagnet) {
+          const dx = goaliePos.current.x - puckPos.current.x;
+          const dy = goaliePos.current.y - puckPos.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+          if (dist < 100 && (angle > -Math.PI * 0.75 && angle < Math.PI * 0.75)) {
+            puckVel.current.x += dx / dist * 2;
+            puckVel.current.y += dy / dist * 2;
+          }
+        }
+
         puckPos.current.x += puckVel.current.x;
         puckPos.current.y += puckVel.current.y;
         if (roundConfig.curveFactor !== 0) {
@@ -411,6 +487,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd }) => {
     const draw = (ctx: CanvasRenderingContext2D) => {
       ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
+      drawHats(ctx);
+      drawOctopus(ctx);
+      
       ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(GOAL_X, 0); ctx.lineTo(GOAL_X, CANVAS_HEIGHT); ctx.stroke();
 
       ctx.fillStyle = '#bfdbfe'; ctx.strokeStyle = '#ef4444'; ctx.beginPath(); ctx.arc(GOAL_X, CANVAS_HEIGHT/2, 60, -Math.PI/2, Math.PI/2); ctx.fill(); ctx.stroke();

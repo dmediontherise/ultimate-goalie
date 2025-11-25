@@ -31,9 +31,10 @@ export interface RoundConfig {
   roundNumber: number;
   shooterSpeed: number;
   shotSpeed: number;
-  aiIntelligence: number; // 0 to 1 (1 is perfect aim)
-  curveFactor: number; // 0 to 1 (amount of curve on puck)
-  jitter: number; // 0 to 1 (erratic movement)
-  isSlapShot?: boolean;
-  hasPowerUp?: boolean;
+  aiIntelligence: number;
+  curveFactor: number;
+  jitter: number;
+  isSlapShot: boolean;
+  hasPowerUp: boolean;
+  hasMagnet: boolean;
 }
