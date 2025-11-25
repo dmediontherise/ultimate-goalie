@@ -91,7 +91,9 @@ const App: React.FC = () => {
   
   // Effect for round transition
   useEffect(() => {
+    console.log('App:useEffect - gameState changed to', gameState);
     if (gameState === GameState.ROUND_TRANSITION) {
+      console.log('App:useEffect - Starting round transition timer');
       const timer = setTimeout(() => {
         nextRound();
       }, 500); // Duration of the wipe animation
@@ -101,6 +103,7 @@ const App: React.FC = () => {
 
 
   const startGame = () => {
+    console.log('App:startGame - Starting game');
     setScore(0);
     setCurrentRound(1);
     setGameState(GameState.PLAYING);
@@ -113,6 +116,7 @@ const App: React.FC = () => {
 
 
   const handleRoundEnd = async (success: boolean, saveType?: SaveType) => {
+    console.log('App:handleRoundEnd - Round ended. Success:', success, 'SaveType:', saveType);
     if (success) {
       if (consecutiveSaves === 5) {
         setOctopusActive(true);
@@ -132,6 +136,7 @@ const App: React.FC = () => {
 
     // Fetch AI Commentary
     setLoadingCommentary(true);
+    console.log('App:handleRoundEnd - Fetching AI commentary');
     
     let shotType = "";
     if (roundConfig.isSlapShot) shotType = "Slap Shot";
@@ -139,16 +144,19 @@ const App: React.FC = () => {
     if (currentRound === 7) shotType = "Curveball";
 
     const text = await getCommentary(currentRound, success, shotType, saveType);
+    console.log('App:handleRoundEnd - Commentary received:', text);
     setCommentary(text);
     setLoadingCommentary(false);
   };
 
   const nextRound = () => {
+    console.log('App:nextRound - Proceeding to next round');
     setCurrentRound(prev => prev + 1);
     setGameState(GameState.PLAYING);
   };
 
   const proceedToNextOrEnd = () => {
+    console.log('App:proceedToNextOrEnd - Proceeding to next round or ending game');
     if (currentRound >= 10) {
       setGameState(GameState.GAME_OVER);
     } else {
@@ -157,6 +165,7 @@ const App: React.FC = () => {
   };
 
   const resetGame = () => {
+    console.log('App:resetGame - Resetting game');
     setGameState(GameState.MENU);
   };
 

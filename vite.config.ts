@@ -6,7 +6,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     base: '/ultimate-goalie/',
-
+    build: {
+      outDir: 'docs'
+    },
     define: {
       'process.env.API_KEY': JSON.stringify(env.VITE_API_KEY)
     }

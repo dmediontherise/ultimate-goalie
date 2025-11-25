@@ -8,8 +8,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "clean": "rd /s /q docs",
+    "predeploy": "npm run clean && npm run build",
+    "deploy": "gh-pages -d docs"
   },
   "dependencies": {
     "@google/genai": "^0.10.0",
