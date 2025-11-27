@@ -98,12 +98,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     // --- Drawing ---
     const drawHats = (ctx: CanvasRenderingContext2D) => {
       hats.current.forEach(hat => {
-        ctx.fillStyle = '#333';
+        hat.y += 2; // Rain fall animation
+        if (hat.y > CANVAS_HEIGHT) {
+          hat.y = -20;
+          hat.x = Math.random() * CANVAS_WIDTH;
+        }
+
+        ctx.fillStyle = '#3B82F6'; // Blue cap
         ctx.beginPath();
-        ctx.ellipse(hat.x, hat.y, 15, 8, 0, 0, Math.PI * 2);
+        ctx.arc(hat.x, hat.y, 15, 0, Math.PI, true);
         ctx.fill();
-        ctx.fillStyle = '#555';
-        ctx.fillRect(hat.x - 10, hat.y - 12, 20, 8);
+        
+        ctx.fillStyle = '#60A5FA'; // Lighter blue brim
+        ctx.beginPath();
+        ctx.ellipse(hat.x, hat.y, 15, 5, 0, 0, Math.PI);
+        ctx.fill();
       });
     };
 
@@ -372,7 +381,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
     // --- Drawing ---
     const drawGoalie = (ctx: CanvasRenderingContext2D, x: number, y: number, stick: StickPosition) => {
-        // console.log('GameCanvas: drawGoalie - Drawing goalie at', x, y, stick); // Too chatty
         const t = stanceLerp.current;
         const breath = Math.sin(frameCount.current * 0.1) * 1.5;
         
@@ -380,11 +388,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
         const bodyY = y + bodyYOffset;
         const headY = bodyY - 25;
 
+        // Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.2)';
         ctx.beginPath();
         ctx.ellipse(x, y + 45, 30 + (t * 15), 10, 0, 0, Math.PI*2);
         ctx.fill();
 
+        // Pads
         ctx.fillStyle = '#f8fafc';
         ctx.strokeStyle = '#334155';
         ctx.lineWidth = 2;
@@ -405,31 +415,37 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
         ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.stroke();
         ctx.restore();
 
-        ctx.fillStyle = '#1e3a8a';
+        // Jersey
+        ctx.fillStyle = '#1e3a8a'; // Dark blue
         ctx.beginPath();
-        if (t > 0.5) {
+        if (t > 0.5) { // Butterfly
              ctx.ellipse(x, y + 15, 22, 18, 0, 0, Math.PI*2);
-        } else {
+        } else { // Standing
              ctx.fillRect(x - 20, y - 10 + breath, 40, 25);
         }
         ctx.fill();
 
-        ctx.fillStyle = '#2563eb';
+        // Chest Protector
+        ctx.fillStyle = '#2563eb'; // Lighter blue
         ctx.beginPath();
         ctx.arc(x, bodyY - 10 + breath, 24, 0, Math.PI*2);
         ctx.fill();
         
+        // Shoulders
         ctx.beginPath();
         ctx.arc(x - 20, bodyY - 15 + breath, 12, 0, Math.PI*2);
         ctx.arc(x + 20, bodyY - 15 + breath, 12, 0, Math.PI*2);
         ctx.fill();
 
-        ctx.fillStyle = '#facc15';
+        // Logo
+        ctx.fillStyle = '#facc15'; // Yellow
         ctx.beginPath(); ctx.arc(x, bodyY - 10 + breath, 8, 0, Math.PI*2); ctx.fill();
 
-        ctx.fillStyle = '#f1f5f9';
+        // Helmet
+        ctx.fillStyle = '#f1f5f9'; // White
         ctx.beginPath(); ctx.arc(x, headY + breath, 14, 0, Math.PI*2); ctx.fill();
         ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+        // Cage
         ctx.beginPath();
         ctx.moveTo(x - 8, headY + breath - 5); ctx.lineTo(x + 8, headY + breath - 5);
         ctx.moveTo(x, headY + breath - 10); ctx.lineTo(x, headY + breath + 10);
@@ -452,11 +468,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
         const gloveX = x - 35; 
         const blockerX = x + 35;
         
+        // Arms
         ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 8; ctx.lineCap = 'round';
         
         ctx.beginPath(); ctx.moveTo(x - 20, bodyY - 15 + breath); 
         ctx.quadraticCurveTo(x - 35, bodyY + breath, gloveX, targetGloveY + breath); ctx.stroke();
 
+        // Glove
         ctx.fillStyle = '#b91c1c'; ctx.strokeStyle = '#7f1d1d'; ctx.lineWidth = 2;
         ctx.beginPath();
         const gloveAngle = stick === StickPosition.UP ? -0.5 : 0.2;
@@ -464,13 +482,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
         ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(gloveX, targetGloveY + breath, 6, 0, Math.PI*2); ctx.fill();
 
+        // Arm
         ctx.beginPath(); ctx.moveTo(x + 20, bodyY - 15 + breath);
         ctx.quadraticCurveTo(x + 35, bodyY + breath, blockerX, targetBlockerY + breath); ctx.stroke();
 
+        // Blocker
         ctx.fillStyle = '#b91c1c';
         ctx.fillRect(blockerX - 12, targetBlockerY + breath - 10, 24, 20);
         ctx.strokeRect(blockerX - 12, targetBlockerY + breath - 10, 24, 20);
 
+        // Stick
         ctx.strokeStyle = '#d97706'; ctx.lineWidth = 4;
         ctx.beginPath();
         ctx.moveTo(blockerX - 5, targetBlockerY + breath - 20);
@@ -491,16 +512,21 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
 
     const drawShooter = (ctx: CanvasRenderingContext2D, x: number, y: number, shotTriggered: boolean, windup: boolean) => {
         const stride = Math.sin(frameCount.current * 0.3) * 10;
-        ctx.fillStyle = '#1f2937'; 
+
+        // Skates
+        ctx.fillStyle = '#1f2937'; // Dark gray
         ctx.fillRect(x - 5 + stride, y - 15, 15, 8); 
         ctx.fillRect(x - 5 - stride, y + 10, 15, 8); 
 
-        ctx.fillStyle = '#dc2626'; 
+        // Jersey
+        ctx.fillStyle = '#dc2626'; // Red
         ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI * 2); ctx.fill();
         
-        ctx.fillStyle = '#000000';
+        // Helmet
+        ctx.fillStyle = '#000000'; // Black
         ctx.beginPath(); ctx.arc(x - 5, y, 9, 0, Math.PI * 2); ctx.fill();
 
+        // Stick
         ctx.strokeStyle = '#475569'; ctx.lineWidth = 4;
         ctx.beginPath();
         const shoulderX = x - 5; const shoulderY = y + 5;

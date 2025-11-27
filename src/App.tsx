@@ -65,7 +65,7 @@ const App: React.FC = () => {
     let curveFactor = ratio > 0.5 ? (ratio - 0.5) * 2 : 0; // Starts curving at round 5
     const isSlapShot = currentRound === 4;
     const hasPowerUp = currentRound === 9;
-    const hasMagnet = currentRound === 5;
+    const hasMagnet = currentRound >= 5 && currentRound <= 10;
 
     // Special Round Logic
     if (isSlapShot) {
