@@ -104,14 +104,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
           hat.x = Math.random() * CANVAS_WIDTH;
         }
 
+        // Draw the cap
         ctx.fillStyle = '#3B82F6'; // Blue cap
         ctx.beginPath();
-        ctx.arc(hat.x, hat.y, 15, 0, Math.PI, true);
+        ctx.arc(hat.x, hat.y, 15, Math.PI, 0);
         ctx.fill();
-        
+
+        // Draw the brim
         ctx.fillStyle = '#60A5FA'; // Lighter blue brim
         ctx.beginPath();
-        ctx.ellipse(hat.x, hat.y, 15, 5, 0, 0, Math.PI);
+        ctx.ellipse(hat.x, hat.y, 15, 8, 0, 0, Math.PI);
         ctx.fill();
       });
     };
