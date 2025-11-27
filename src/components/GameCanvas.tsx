@@ -167,6 +167,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
     };
 
     const updateGoalieFromTouch = (touch: Touch) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
       const rect = canvas.getBoundingClientRect();
       // Map screen coordinates to canvas 800x600 coordinates
       const scaleX = CANVAS_WIDTH / rect.width;

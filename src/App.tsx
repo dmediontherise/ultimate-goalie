@@ -1,5 +1,4 @@
-// Trigger a new GitHub Actions workflow run
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import GameCanvas from './components/GameCanvas';
 import { GameState, RoundConfig, StickPosition, SaveType } from './types';
 import { getCommentary } from './services/geminiService';
@@ -91,6 +90,12 @@ const App: React.FC = () => {
   }, [currentRound]);
   
   // Effect for round transition
+  const nextRound = useCallback(() => {
+    console.log('App:nextRound - Proceeding to next round');
+    setCurrentRound(prev => prev + 1);
+    setGameState(GameState.PLAYING);
+  }, []);
+
   useEffect(() => {
     console.log('App:useEffect - gameState changed to', gameState);
     if (gameState === GameState.ROUND_TRANSITION) {
@@ -100,7 +105,7 @@ const App: React.FC = () => {
       }, 500); // Duration of the wipe animation
       return () => clearTimeout(timer);
     }
-  }, [gameState]);
+  }, [gameState, nextRound]);
 
 
   const startGame = () => {
@@ -116,7 +121,7 @@ const App: React.FC = () => {
   };
 
 
-  const handleRoundEnd = async (success: boolean, saveType?: SaveType) => {
+  const handleRoundEnd = useCallback(async (success: boolean, saveType?: SaveType) => {
     console.log('App:handleRoundEnd - Round ended. Success:', success, 'SaveType:', saveType);
     if (success) {
       if (consecutiveSaves === 5) {
@@ -148,27 +153,21 @@ const App: React.FC = () => {
     console.log('App:handleRoundEnd - Commentary received:', text);
     setCommentary(text);
     setLoadingCommentary(false);
-  };
+  }, [roundConfig, consecutiveSaves, consecutiveAIScores]);
 
-  const nextRound = () => {
-    console.log('App:nextRound - Proceeding to next round');
-    setCurrentRound(prev => prev + 1);
-    setGameState(GameState.PLAYING);
-  };
-
-  const proceedToNextOrEnd = () => {
+  const proceedToNextOrEnd = useCallback(() => {
     console.log('App:proceedToNextOrEnd - Proceeding to next round or ending game');
     if (currentRound >= 10) {
       setGameState(GameState.GAME_OVER);
     } else {
       setGameState(GameState.ROUND_TRANSITION);
     }
-  };
+  }, [currentRound]);
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     console.log('App:resetGame - Resetting game');
     setGameState(GameState.MENU);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center bg-slate-900 font-sans relative overflow-y-auto pb-8">
