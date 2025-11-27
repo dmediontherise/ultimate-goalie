@@ -1,3 +1,4 @@
+// Trigger a new GitHub Actions workflow run
 import React, { useState, useMemo, useEffect } from 'react';
 import GameCanvas from './components/GameCanvas';
 import { GameState, RoundConfig, StickPosition, SaveType } from './types';
