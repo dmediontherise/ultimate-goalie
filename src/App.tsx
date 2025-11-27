@@ -174,7 +174,7 @@ const App: React.FC = () => {
       
       {/* Header */}
       <div className="py-4 text-center shrink-0">
-        <h1 className="text-3xl md:text-4xl font-bold text-blue-500 tracking-widest uppercase drop-shadow-lg">Ultimate Goalie v2</h1>
+        <h1 className="text-3xl md:text-4xl font-bold text-blue-500 tracking-widest uppercase drop-shadow-lg">Ultimate Goalie v3</h1>
         <p className="text-slate-400 text-xs md:text-sm mt-1">Defend the net against the AI machine</p>
       </div>
 
