@@ -169,12 +169,6 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       e.preventDefault();
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
-      console.log('GameCanvas: handleTouchEnd - Touch ended.');
-      e.preventDefault();
-      isDragging.current = false;
-    };
-
     const updateGoalieFromTouch = (touch: Touch) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -187,6 +181,20 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       const targetX = (touch.clientX - rect.left) * scaleX;
       const targetY = (touch.clientY - rect.top) * scaleY;
 
+      // Apply constraints immediately
+      goaliePos.current.x = Math.max(50, Math.min(140, targetX));
+      goaliePos.current.y = Math.max(50, Math.min(CANVAS_HEIGHT - 50, targetY));
+      console.log('GameCanvas: updateGoalieFromTouch - Goalie pos:', goaliePos.current);
+    };
+
+    const handleTouchTap = (touch: Touch) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleY = CANVAS_HEIGHT / rect.height;
+      const targetY = (touch.clientY - rect.top) * scaleY;
+
       if (targetY > CANVAS_HEIGHT * 0.66) {
         stickPos.current = StickPosition.DOWN;
       } else if (targetY < CANVAS_HEIGHT * 0.33) {
@@ -194,11 +202,16 @@ const GameCanvas: React.FC<GameCanvasProps> = ({ roundConfig, onRoundEnd, hatTri
       } else {
         stickPos.current = StickPosition.STRAIGHT;
       }
+      console.log('GameCanvas: handleTouchTap - Stick pos:', stickPos.current);
+    };
 
-      // Apply constraints immediately
-      goaliePos.current.x = Math.max(50, Math.min(140, targetX));
-      goaliePos.current.y = Math.max(50, Math.min(CANVAS_HEIGHT - 50, targetY));
-      console.log('GameCanvas: updateGoalieFromTouch - Goalie pos:', goaliePos.current, 'Stick pos:', stickPos.current);
+    const handleTouchEnd = (e: TouchEvent) => {
+      console.log('GameCanvas: handleTouchEnd - Touch ended.');
+      e.preventDefault();
+      if (isDragging.current) {
+        handleTouchTap(e.changedTouches[0]);
+      }
+      isDragging.current = false;
     };
 
     window.addEventListener('keydown', handleKeyDown);
