@@ -15,9 +15,7 @@ export const getCommentary = async (
   shotType: string,
   saveType?: SaveType
 ): Promise<string> => {
-  console.log('geminiService:getCommentary - Called with:', { round, won, shotType, saveType });
   if (!genAI) {
-    console.log('geminiService:getCommentary - No GenAI instance, returning default commentary.');
     return won ? "Great save! Ready for the next round?" : "Goal! Shake it off, goalie.";
   }
 
@@ -34,7 +32,6 @@ export const getCommentary = async (
     } else {
       outcomeDetails = "ALLOWED a goal.";
     }
-    console.log('geminiService:getCommentary - Outcome details:', outcomeDetails);
 
     const response = await genAI.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -55,7 +52,6 @@ export const getCommentary = async (
     });
 
     const commentary = response.text || (won ? "What a save!" : "It's in the net!");
-    console.log('geminiService:getCommentary - Generated commentary:', commentary);
     return commentary;
   } catch (error) {
     console.error("Gemini API Error:", error);
