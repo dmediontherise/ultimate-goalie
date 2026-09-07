@@ -3,6 +3,9 @@ export const CANVAS_HEIGHT = 600;
 export const GOAL_TOP = 170;
 export const GOAL_BOTTOM = 430;
 export const GOAL_X = 40;
+/** Vertical centre of the goal mouth. Derived, never a literal, so it cannot
+ *  drift from the posts if the net is ever moved or resized. */
+export const GOAL_CENTER_Y = (GOAL_TOP + GOAL_BOTTOM) / 2;
 export const GOALIE_RADIUS = 20;
 export const PUCK_RADIUS = 6;
 export const MAGNUS_ACCELERATION = 200;
