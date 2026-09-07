@@ -450,4 +450,108 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     expect(stepSpy.mock.calls.length).toBeLessThanOrEqual(30);
     expect(stepSpy.mock.calls.length).not.toBe(120);
   });
+
+  it('persists accumulator across animation frames rather than recreating per frame (Task 028 Requirement 2)', () => {
+    const onRoundEnd = vi.fn();
+    const stepSpy = vi.spyOn(simModule, 'step');
+    let fakeNow = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => fakeNow);
+
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+    stepSpy.mockClear();
+
+    // Drive frame 1: delta 5ms (0.005s), less than FIXED_DT (1/120s ≈ 8.33ms)
+    fakeNow += 5;
+    act(() => {
+      frameCallback(fakeNow);
+    });
+    expect(stepSpy).not.toHaveBeenCalled();
+
+    // Drive frame 2: delta 5ms (0.005s), cumulative 10ms > FIXED_DT
+    fakeNow += 5;
+    act(() => {
+      frameCallback(fakeNow);
+    });
+    expect(stepSpy).toHaveBeenCalledTimes(1);
+    expect(stepSpy.mock.calls[0][2]).toBe(1 / 120);
+  });
+
+  it('halts stepping on round-end event rather than continuing to drain accumulator (Task 028 Requirement 3)', () => {
+    const onRoundEnd = vi.fn();
+    const roundEndEvent: simModule.SimEvent = {
+      type: 'round-end',
+      success: true,
+      saveType: 'glove',
+    };
+    const stepSpy = vi.spyOn(simModule, 'step').mockReturnValue([roundEndEvent]);
+    let fakeNow = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => fakeNow);
+
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+    stepSpy.mockClear();
+
+    // Drive frame with 50ms delta (0.05s / (1/120s) = 6 fixed steps)
+    fakeNow += 50;
+    act(() => {
+      frameCallback(fakeNow);
+    });
+
+    // Halts immediately after the first step produces round-end
+    expect(stepSpy).toHaveBeenCalledTimes(1);
+    expect(stepSpy.mock.calls.length).toBeLessThan(6);
+  });
+
+  it('invokes sim.step with fixed dt of 1/120 (Task 028 Requirement 4)', () => {
+    const onRoundEnd = vi.fn();
+    const stepSpy = vi.spyOn(simModule, 'step');
+    let fakeNow = 1000;
+    vi.spyOn(performance, 'now').mockImplementation(() => fakeNow);
+
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+    stepSpy.mockClear();
+
+    // Drive one frame with 16ms delta (0.016s >= 1/120s)
+    fakeNow += 16;
+    act(() => {
+      frameCallback(fakeNow);
+    });
+
+    expect(stepSpy).toHaveBeenCalled();
+    expect(stepSpy.mock.calls[0][2]).toBe(1 / 120);
+    expect(stepSpy).toHaveBeenCalledWith(expect.anything(), expect.anything(), 1 / 120);
+  });
 });
+

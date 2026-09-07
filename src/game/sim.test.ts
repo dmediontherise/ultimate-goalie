@@ -421,6 +421,64 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(sim.puckPos.y).toBe(300);
   });
 
+  it('does not register a goal-line crossing for puck exiting from behind the net landing exactly on goalLineX (Task 031 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    const goalLineX = GOAL_X + 5;
+    sim.puckPos = { x: goalLineX - 1, y: 300 };
+    sim.puckVel = { x: 120, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 120);
+
+    expect(sim.roundEnded).toBe(false);
+    expect(events).toEqual([]);
+    expect(sim.puckPos.x).toBe(goalLineX);
+    expect(sim.puckPos.y).toBe(300);
+  });
+
+  it('resolves an exact t=0 tie between overlapping save and goal-line crossing as a save, not a goal (Task 035 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 50, y: 300 };
+    sim.goalie.stance = GoalieStance.DESPERATION_DIVE;
+    sim.puckPos = { x: 30, y: 300 };
+    sim.puckVel = { x: 0, y: 0 };
+
+    // DESPERATION_DIVE body hitbox spans a: {x:20,y:300} to b: {x:110,y:300},
+    // radius 24. Puck center x:30 lies on the capsule axis, so the puck overlaps
+    // the hitbox at t = 0 (physics.ts >= overlap branch). prevPos.x and newPos.x
+    // are both 30 < goalLineX = 45, so tGoal is also exactly 0 (sim.ts:223).
+    // The tie bestHit.t <= tGoal (sim.ts:227) must favour the save.
+    const events = step(sim, {}, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'body' }]);
+  });
+
+  it('interpolates rescued puck position on fractional-t save instead of using raw endpoint (Task 037 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 300 };
+    sim.goalie.stance = GoalieStance.STAND;
+    sim.puckPos = { x: 300, y: 400 };
+    sim.puckVel = { x: -12000, y: -6000 };
+
+    const events = step(sim, {}, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    const roundEndEvent = events.find(e => e.type === 'round-end');
+    expect(roundEndEvent).toBeDefined();
+    expect(roundEndEvent?.success).toBe(true);
+    expect(sim.puckPos.x).toBeCloseTo(135.919839, 4);
+    expect(sim.puckPos.y).toBeCloseTo(317.959920, 4);
+  });
+
   it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
     const sim = createSim(testConfig, 1);
     sim.hasShot = true;

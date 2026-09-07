@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Vector2 } from '../types';
 import {
   DEKE_SKILL_THRESHOLD,
+  ESTIMATED_FLIGHT_TIME,
   GOAL_BOTTOM,
   GOAL_CENTER_Y,
   GOAL_TOP,
@@ -425,5 +426,50 @@ describe('Shooter AI (Task 005)', () => {
     expect(target.y).toBeGreaterThan(GOAL_CENTER_Y);
     expect(target.y).toBeLessThanOrEqual(GOAL_BOTTOM - 15);
   });
+
+  it('breaks clearance tie in chooseTarget toward goalie positive velocity (Task 030 Requirement 1)', () => {
+    const rng = () => 0;
+    const goalie = createGoalie({ x: 100, y: GOAL_CENTER_Y });
+    goalie.vel = { x: 0, y: 5 };
+
+    const skill = 1;
+    const target = chooseTarget(goalie, skill, rng);
+    const leadOffset = goalie.vel.y * ESTIMATED_FLIGHT_TIME * skill;
+    const recoveredY = target.y - leadOffset;
+
+    expect(recoveredY).toBeGreaterThan(GOAL_CENTER_Y);
+  });
+
+  it('breaks clearance tie in chooseTarget toward goalie negative velocity (Task 030 Requirement 2)', () => {
+    const rng = () => 0;
+    const goalie = createGoalie({ x: 100, y: GOAL_CENTER_Y });
+    goalie.vel = { x: 0, y: -5 };
+
+    const skill = 1;
+    const target = chooseTarget(goalie, skill, rng);
+    const leadOffset = goalie.vel.y * ESTIMATED_FLIGHT_TIME * skill;
+    const recoveredY = target.y - leadOffset;
+
+    expect(recoveredY).toBeLessThan(GOAL_CENTER_Y);
+  });
+
+  it('breaks clearance tie in chooseDekeFinalTarget toward goalie positive velocity (Task 030 Requirement 3)', () => {
+    const goalie = createGoalie({ x: 100, y: GOAL_CENTER_Y });
+    goalie.vel = { x: 0, y: 5 };
+    const fakedTarget: Vector2 = { x: GOAL_X, y: GOAL_CENTER_Y + 60 };
+
+    const finalTarget = chooseDekeFinalTarget(fakedTarget, goalie);
+    expect(finalTarget.y).toBeGreaterThan(GOAL_CENTER_Y);
+  });
+
+  it('breaks clearance tie in chooseDekeFinalTarget toward goalie negative velocity (Task 030 Requirement 3)', () => {
+    const goalie = createGoalie({ x: 100, y: GOAL_CENTER_Y });
+    goalie.vel = { x: 0, y: -5 };
+    const fakedTarget: Vector2 = { x: GOAL_X, y: GOAL_CENTER_Y + 60 };
+
+    const finalTarget = chooseDekeFinalTarget(fakedTarget, goalie);
+    expect(finalTarget.y).toBeLessThan(GOAL_CENTER_Y);
+  });
 });
+
 
