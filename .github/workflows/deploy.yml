@@ -1,41 +1,46 @@
-name: Deploy to GitHub Pages
+name: CI
+
+# GitHub Pages for this repo is configured as a legacy build serving master:/docs
+# directly, so pushing to master publishes on its own - there is no deploy step to
+# run here. This workflow's job is to prove that the committed docs/ build is the
+# one the source actually produces, and that the suite is green.
 
 on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build
 
-      - name: Log contents of docs directory
-        run: ls -R docs
-
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-
-      - name: Purge Cloudflare cache
-        uses: jakejarvis/cloudflare-purge-action@v0.3.0
-        env:
-          CLOUDFLARE_ZONE: ${{ secrets.CLOUDFLARE_ZONE }}
-          CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+      - name: Verify committed docs/ matches the build
+        run: |
+          if [ -n "$(git status --porcelain docs)" ]; then
+            echo "::error::docs/ is out of date with the source. Run 'npm run build' and commit the result."
+            git status --porcelain docs
+            exit 1
+          fi
+          echo "docs/ matches the build output."
