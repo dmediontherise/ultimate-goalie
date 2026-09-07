@@ -460,6 +460,25 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'body' }]);
   });
 
+  it('interpolates rescued puck position on fractional-t save instead of using raw endpoint (Task 037 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 300 };
+    sim.goalie.stance = GoalieStance.STAND;
+    sim.puckPos = { x: 300, y: 400 };
+    sim.puckVel = { x: -12000, y: -6000 };
+
+    const events = step(sim, {}, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    const roundEndEvent = events.find(e => e.type === 'round-end');
+    expect(roundEndEvent).toBeDefined();
+    expect(roundEndEvent?.success).toBe(true);
+    expect(sim.puckPos.x).toBeCloseTo(135.919839, 4);
+    expect(sim.puckPos.y).toBeCloseTo(317.959920, 4);
+  });
+
   it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
     const sim = createSim(testConfig, 1);
     sim.hasShot = true;

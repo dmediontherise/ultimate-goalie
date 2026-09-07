@@ -158,6 +158,67 @@ describe('Goalie Stance Machine and Recovery (Requirement 5)', () => {
     // Move must be rejected: stance remains STAND, not DESPERATION_DIVE
     expect(goalie.stance).toBe(GoalieStance.STAND);
   });
+
+  it('rejects poke check requested during recovery window (Task 036 Requirement 4)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+
+    // Start poke check
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
+
+    // Advance past active window into recovery
+    while (goalie.activeTimer > 0) {
+      stepGoalie(goalie, {}, dt);
+    }
+    expect(goalie.activeTimer).toBe(0);
+    expect(goalie.recoveryTimer).toBeGreaterThan(0);
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+    expect(goalie.stamina).toBeGreaterThanOrEqual(POKE_COST);
+
+    // Request poke check again during recovery with sufficient stamina
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+  });
+
+  it('rejects glove snag requested during recovery window (Task 036 Requirement 5)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+
+    // Start glove snag
+    stepGoalie(goalie, { gloveSnag: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.GLOVE_SNAG);
+
+    // Advance past active window into recovery
+    while (goalie.activeTimer > 0) {
+      stepGoalie(goalie, {}, dt);
+    }
+    expect(goalie.activeTimer).toBe(0);
+    expect(goalie.recoveryTimer).toBeGreaterThan(0);
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+    expect(goalie.stamina).toBeGreaterThanOrEqual(GLOVE_SNAG_COST);
+
+    // Request glove snag again during recovery with sufficient stamina
+    stepGoalie(goalie, { gloveSnag: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+  });
+
+  it('rejects move requested during active window and does not reset active timer (Task 038 Requirement 1)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
+    expect(goalie.activeTimer).toBeGreaterThan(0);
+    expect(goalie.stamina).toBeGreaterThanOrEqual(DIVE_COST);
+
+    const prevActiveTimer = goalie.activeTimer;
+    stepGoalie(goalie, { dive: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
+    expect(goalie.activeTimer).toBeGreaterThan(0);
+    expect(goalie.activeTimer).toBeLessThan(prevActiveTimer);
+  });
 });
 
 describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
@@ -322,6 +383,36 @@ describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
 
     expect(goalie.stance).toBe(GoalieStance.STAND);
     expect(goalie.stamina).toBeCloseTo(GLOVE_SNAG_COST - 0.01 + STAMINA_REGEN_RATE * dt, 5);
+  });
+
+  it('accepts dive when stamina is exactly DIVE_COST (Task 036 Requirement 1)', () => {
+    const goalie = createGoalie();
+    const dt = 0;
+    goalie.stamina = DIVE_COST;
+
+    stepGoalie(goalie, { dive: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.DESPERATION_DIVE);
+  });
+
+  it('accepts poke check when stamina is exactly POKE_COST (Task 036 Requirement 2)', () => {
+    const goalie = createGoalie();
+    const dt = 0;
+    goalie.stamina = POKE_COST;
+
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
+  });
+
+  it('accepts glove snag when stamina is exactly GLOVE_SNAG_COST (Task 036 Requirement 3)', () => {
+    const goalie = createGoalie();
+    const dt = 0;
+    goalie.stamina = GLOVE_SNAG_COST;
+
+    stepGoalie(goalie, { gloveSnag: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.GLOVE_SNAG);
   });
 });
 
