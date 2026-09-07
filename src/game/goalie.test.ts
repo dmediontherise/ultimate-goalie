@@ -98,6 +98,16 @@ describe('Goalie Movement and Physics (Requirements 2, 3, 4)', () => {
     expect(goalie.vel).toEqual({ x: 0, y: 0 });
   });
 
+  it('resets goalie horizontal velocity to zero when direct-position input takes over (Task 027 Requirement 1)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+    stepGoalie(goalie, { right: true }, 1 / 60);
+    expect(goalie.vel.x).toBeGreaterThan(0);
+
+    stepGoalie(goalie, { goaliePos: { x: 120, y: 300 } }, 1 / 60);
+    expect(goalie.vel).toEqual({ x: 0, y: 0 });
+  });
+
+
   it('preserves fractional coordinates exactly for direct-position input within bounds (Task 021 Requirement 2)', () => {
     const goalie = createGoalie({ x: 80, y: 200 });
     stepGoalie(goalie, { goaliePos: { x: 100.37, y: 300.82 } }, 1 / 60);
@@ -196,7 +206,34 @@ describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
 
     expect(successfulDives).toBeLessThan(5);
   });
+
+  it('consumes 0.2 stamina when performing a glove snag (Task 029 Requirement 1)', () => {
+    const goalie = createGoalie();
+    const initialStamina = goalie.stamina;
+
+    stepGoalie(goalie, { gloveSnag: true }, 1 / 120);
+    expect(goalie.stance).toBe(GoalieStance.GLOVE_SNAG);
+    expect(initialStamina - goalie.stamina).toBeCloseTo(0.2, 5);
+    expect(goalie.stamina).toBeCloseTo(0.8, 5);
+  });
+
+  it('regenerates stamina at literal rate 0.3 per second during idle steps (Task 029 Requirement 2)', () => {
+    const goalie = createGoalie();
+    goalie.stamina = 0.5;
+    const staminaBefore = goalie.stamina;
+
+    const dt = 1 / 120;
+    // Step idle for 1.0 second (120 steps)
+    for (let i = 0; i < 120; i++) {
+      stepGoalie(goalie, {}, dt);
+    }
+
+    // 0.3 rate * 1.0 second = 0.3 increase
+    expect(goalie.stamina - staminaBefore).toBeCloseTo(0.3, 5);
+    expect(goalie.stamina).toBeCloseTo(0.8, 5);
+  });
 });
+
 
 describe('Hitbox Validity and Robustness (Requirement 11)', () => {
   it('asserts every hitbox returned by getHitboxes for every stance is finite and has positive radius', () => {

@@ -101,4 +101,25 @@ describe('Accumulator (Requirement 6)', () => {
     expect(steps).not.toBe(120);
     expect(steps).toBe(30);
   });
+
+  it('carries over sub-step leftover time across separate advance calls (Task 028 Requirement 1)', () => {
+    const acc = createAccumulator();
+    let stepCount = 0;
+
+    // First call: 0.005s < FIXED_DT (1/120 ≈ 0.008333s)
+    const firstSteps = advanceAccumulator(acc, 0.005, () => {
+      stepCount++;
+    });
+    expect(firstSteps).toBe(0);
+    expect(stepCount).toBe(0);
+
+    // Second call: 0.005s. Total accumulated time = 0.010s > FIXED_DT
+    const secondSteps = advanceAccumulator(acc, 0.005, () => {
+      stepCount++;
+    });
+    expect(secondSteps).toBe(1);
+    expect(stepCount).toBe(1);
+    expect(acc.time).toBeCloseTo(0.01 - FIXED_DT);
+  });
 });
+
