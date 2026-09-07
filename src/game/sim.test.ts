@@ -440,6 +440,26 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(sim.puckPos.y).toBe(300);
   });
 
+  it('resolves an exact t=0 tie between overlapping save and goal-line crossing as a save, not a goal (Task 035 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 50, y: 300 };
+    sim.goalie.stance = GoalieStance.DESPERATION_DIVE;
+    sim.puckPos = { x: 30, y: 300 };
+    sim.puckVel = { x: 0, y: 0 };
+
+    // DESPERATION_DIVE body hitbox spans a: {x:20,y:300} to b: {x:110,y:300},
+    // radius 24. Puck center x:30 lies on the capsule axis, so the puck overlaps
+    // the hitbox at t = 0 (physics.ts >= overlap branch). prevPos.x and newPos.x
+    // are both 30 < goalLineX = 45, so tGoal is also exactly 0 (sim.ts:223).
+    // The tie bestHit.t <= tGoal (sim.ts:227) must favour the save.
+    const events = step(sim, {}, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'body' }]);
+  });
+
   it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
     const sim = createSim(testConfig, 1);
     sim.hasShot = true;

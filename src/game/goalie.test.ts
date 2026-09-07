@@ -7,8 +7,10 @@ import {
 } from './goalie';
 import {
   DIVE_COST,
+  GLOVE_SNAG_COST,
   GOALIE_MAX_SPEED,
   POKE_COST,
+  STAMINA_REGEN_RATE,
 } from './constants';
 import { GoalieStance, StickPosition } from '../types';
 
@@ -104,6 +106,24 @@ describe('Goalie Movement and Physics (Requirements 2, 3, 4)', () => {
     expect(goalie.vel.x).toBeGreaterThan(0);
 
     stepGoalie(goalie, { goaliePos: { x: 120, y: 300 } }, 1 / 60);
+    expect(goalie.vel).toEqual({ x: 0, y: 0 });
+  });
+
+  it('resets goalie negative horizontal velocity to zero when direct-position input takes over (Task 032 Requirement 1)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+    stepGoalie(goalie, { left: true }, 1 / 60);
+    expect(goalie.vel.x).toBeLessThan(0);
+
+    stepGoalie(goalie, { goaliePos: { x: 90, y: 300 } }, 1 / 60);
+    expect(goalie.vel).toEqual({ x: 0, y: 0 });
+  });
+
+  it('resets goalie positive vertical velocity to zero when direct-position input takes over (Task 032 Requirement 2)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+    stepGoalie(goalie, { down: true }, 1 / 60);
+    expect(goalie.vel.y).toBeGreaterThan(0);
+
+    stepGoalie(goalie, { goaliePos: { x: 100, y: 350 } }, 1 / 60);
     expect(goalie.vel).toEqual({ x: 0, y: 0 });
   });
 
@@ -231,6 +251,77 @@ describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
     // 0.3 rate * 1.0 second = 0.3 increase
     expect(goalie.stamina - staminaBefore).toBeCloseTo(0.3, 5);
     expect(goalie.stamina).toBeCloseTo(0.8, 5);
+  });
+
+  it('regenerates stamina during an active stance window (Task 034 Requirement 1)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+
+    stepGoalie(goalie, { gloveSnag: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.GLOVE_SNAG);
+    expect(goalie.activeTimer).toBeGreaterThan(0);
+
+    const staminaBefore = goalie.stamina;
+    stepGoalie(goalie, {}, dt);
+
+    expect(goalie.activeTimer).toBeGreaterThan(0); // still inside the active window
+    // Regen must not be gated to idle-only: the single idle tick still adds 0.3 * dt.
+    expect(goalie.stamina).toBeCloseTo(staminaBefore + STAMINA_REGEN_RATE * dt, 5);
+  });
+
+  it('regenerates stamina during a recovery window (Task 034 Requirement 2)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+    expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
+
+    // Drive past the active window into recovery.
+    while (goalie.activeTimer > 0) {
+      stepGoalie(goalie, {}, dt);
+    }
+    expect(goalie.activeTimer).toBe(0);
+    expect(goalie.recoveryTimer).toBeGreaterThan(0);
+
+    const staminaBefore = goalie.stamina;
+    stepGoalie(goalie, {}, dt);
+
+    expect(goalie.recoveryTimer).toBeGreaterThan(0); // still recovering
+    expect(goalie.stamina).toBeCloseTo(staminaBefore + STAMINA_REGEN_RATE * dt, 5);
+  });
+
+  it('rejects dive when stamina is below DIVE_COST (Task 033 Requirement 1)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+    goalie.stamina = DIVE_COST - 0.01;
+
+    stepGoalie(goalie, { dive: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+    // Only the 0.3/s idle regen applies; the DIVE_COST deduction must not.
+    expect(goalie.stamina).toBeCloseTo(DIVE_COST - 0.01 + STAMINA_REGEN_RATE * dt, 5);
+  });
+
+  it('rejects poke check when stamina is below POKE_COST (Task 033 Requirement 2)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+    goalie.stamina = POKE_COST - 0.01;
+
+    stepGoalie(goalie, { pokeCheck: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+    expect(goalie.stamina).toBeCloseTo(POKE_COST - 0.01 + STAMINA_REGEN_RATE * dt, 5);
+  });
+
+  it('rejects glove snag when stamina is below GLOVE_SNAG_COST (Task 033 Requirement 3)', () => {
+    const goalie = createGoalie();
+    const dt = 1 / 120;
+    goalie.stamina = GLOVE_SNAG_COST - 0.01;
+
+    stepGoalie(goalie, { gloveSnag: true }, dt);
+
+    expect(goalie.stance).toBe(GoalieStance.STAND);
+    expect(goalie.stamina).toBeCloseTo(GLOVE_SNAG_COST - 0.01 + STAMINA_REGEN_RATE * dt, 5);
   });
 });
 
