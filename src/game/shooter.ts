@@ -68,6 +68,76 @@ export function calculateClearance(target: Vector2, goalie: GoalieState): number
 
 export const getClearance = calculateClearance;
 
+/** Two candidate clearances closer than this count as equal. */
+export const CLEARANCE_TIE_EPS = 1e-4;
+
+/**
+ * Picks one y from a set of equally-clear candidates.
+ *
+ * This is exported, and takes the tied set directly rather than a goalie,
+ * because it cannot be exercised any other way: `calculateClearance` varies
+ * continuously with y, so no realistic goalie configuration produces two
+ * candidates whose clearances land within CLEARANCE_TIE_EPS of each other.
+ * Buried inside the candidate scan, the rule was unreachable in practice and
+ * its outcome depended on iteration order - a test could not tell it from an
+ * implementation that had no tie-break at all.
+ *
+ * Rule: prefer a candidate on the same side of goal centre as the goalie's
+ * vertical motion; among those, the one furthest from `awayFromY` when given
+ * (the deke's faked target), otherwise the one furthest from goal centre.
+ * Ties beyond that resolve to the lowest y so the result is deterministic.
+ */
+export function breakClearanceTie(
+  tiedYs: number[],
+  goalieVy: number,
+  awayFromY?: number
+): number {
+  if (tiedYs.length === 0) return GOAL_CENTER_Y;
+  if (tiedYs.length === 1) return tiedYs[0];
+
+  const dir = Math.sign(goalieVy);
+  const preferred =
+    dir === 0
+      ? []
+      : tiedYs.filter(y => Math.sign(y - GOAL_CENTER_Y) === dir);
+  const pool = preferred.length > 0 ? preferred : tiedYs;
+
+  const anchor = awayFromY ?? GOAL_CENTER_Y;
+  let best = pool[0];
+  for (const y of pool) {
+    const d = Math.abs(y - anchor);
+    const bd = Math.abs(best - anchor);
+    if (d > bd || (d === bd && y < best)) {
+      best = y;
+    }
+  }
+  return best;
+}
+
+/**
+ * Picks the highest-clearance candidate, delegating exact ties to
+ * breakClearanceTie. Order-independent: the result does not depend on the
+ * sequence the candidates arrive in.
+ */
+export function selectBestCandidateY(
+  candidates: { y: number; clearance: number }[],
+  goalieVy: number,
+  awayFromY?: number
+): number {
+  if (candidates.length === 0) return GOAL_CENTER_Y;
+
+  let max = -Infinity;
+  for (const c of candidates) {
+    if (c.clearance > max) max = c.clearance;
+  }
+
+  const tied = candidates
+    .filter(c => Math.abs(c.clearance - max) < CLEARANCE_TIE_EPS)
+    .map(c => c.y);
+
+  return breakClearanceTie(tied, goalieVy, awayFromY);
+}
+
 /**
  * Chooses a target on the goal mouth by scoring candidate clearances,
  * blending with a random candidate by skill, and applying goalie velocity lead.
@@ -83,24 +153,16 @@ export function chooseTarget(
   const yMax = GOAL_BOTTOM - 15;
   const numCandidates = 40;
 
-  let bestY = (yMin + yMax) / 2;
-  let maxClearance = -Infinity;
-
+  const candidates: { y: number; clearance: number }[] = [];
   for (let i = 0; i < numCandidates; i++) {
     const candidateY = yMin + (i / (numCandidates - 1)) * (yMax - yMin);
-    const candidatePt: Vector2 = { x: GOAL_X, y: candidateY };
-    const clearance = calculateClearance(candidatePt, goalie);
-
-    // If clearance is strictly better, or equal tie broken in direction of goalie vel
-    const goalieVy = goalie.vel?.y ?? 0;
-    const isTie = Math.abs(clearance - maxClearance) < 1e-4;
-    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - GOAL_CENTER_Y) === Math.sign(goalieVy);
-
-    if (clearance > maxClearance || preferByVel) {
-      maxClearance = clearance;
-      bestY = candidateY;
-    }
+    candidates.push({
+      y: candidateY,
+      clearance: calculateClearance({ x: GOAL_X, y: candidateY }, goalie),
+    });
   }
+
+  const bestY = selectBestCandidateY(candidates, goalie.vel?.y ?? 0);
 
   // Random candidate
   const randY = yMin + rng() * (yMax - yMin);
@@ -207,44 +269,24 @@ export function chooseDekeFinalTarget(fakedTarget: Vector2, goalie: GoalieState)
   const numCandidates = 40;
   const fakeY = fakedTarget?.y ?? GOAL_CENTER_Y;
 
-  let bestY = (yMin + yMax) / 2;
-  let maxClearance = -Infinity;
+  const goalieVy = goalie.vel?.y ?? 0;
 
-  // 1. Evaluate candidates that differ from fakedTarget by more than 50 px
+  const all: { y: number; clearance: number }[] = [];
   for (let i = 0; i < numCandidates; i++) {
     const candidateY = yMin + (i / (numCandidates - 1)) * (yMax - yMin);
-    const diff = Math.abs(candidateY - fakeY);
-    if (diff <= 50) {
-      continue;
-    }
-
-    const candidatePt: Vector2 = { x: GOAL_X, y: candidateY };
-    const clearance = calculateClearance(candidatePt, goalie);
-
-    const goalieVy = goalie.vel?.y ?? 0;
-    const isTie = Math.abs(clearance - maxClearance) < 1e-4;
-    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - GOAL_CENTER_Y) === Math.sign(goalieVy);
-    const preferByDist = isTie && !preferByVel && diff > Math.abs(bestY - fakeY);
-
-    if (clearance > maxClearance || preferByVel || preferByDist) {
-      maxClearance = clearance;
-      bestY = candidateY;
-    }
+    all.push({
+      y: candidateY,
+      clearance: calculateClearance({ x: GOAL_X, y: candidateY }, goalie),
+    });
   }
 
-  // 2. Fallback: if no candidate was > 50 px away, pick candidate with maximum clearance
-  if (maxClearance === -Infinity) {
-    for (let i = 0; i < numCandidates; i++) {
-      const candidateY = yMin + (i / (numCandidates - 1)) * (yMax - yMin);
-      const candidatePt: Vector2 = { x: GOAL_X, y: candidateY };
-      const clearance = calculateClearance(candidatePt, goalie);
-
-      if (clearance > maxClearance) {
-        maxClearance = clearance;
-        bestY = candidateY;
-      }
-    }
-  }
+  // 1. Prefer candidates that differ from the faked target by more than 50 px.
+  // 2. Fall back to the whole mouth if the fake leaves no such candidate.
+  const separated = all.filter(c => Math.abs(c.y - fakeY) > 50);
+  const bestY =
+    separated.length > 0
+      ? selectBestCandidateY(separated, goalieVy, fakeY)
+      : selectBestCandidateY(all, goalieVy);
 
   return {
     x: GOAL_X,

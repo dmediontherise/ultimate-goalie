@@ -18,6 +18,7 @@ import {
 import { createGoalie } from './goalie';
 import { createRng } from './rng';
 import {
+  breakClearanceTie,
   calculateClearance,
   chooseDekeFinalTarget,
   chooseTarget,
@@ -26,6 +27,7 @@ import {
   createShooter,
   getShotSpeedMultiplier,
   getShotWindup,
+  selectBestCandidateY,
   selectShotType,
   shouldDeke,
   stepShooter,
@@ -473,3 +475,85 @@ describe('Shooter AI (Task 005)', () => {
 });
 
 
+
+describe('Clearance tie-break (task 030 gap)', () => {
+  // These assertions were impossible while the tie-break lived inside the
+  // candidate scan: calculateClearance varies continuously with y, so no
+  // goalie configuration yields two candidates tied within CLEARANCE_TIE_EPS.
+  // Taking the tied set directly is what makes the rule reachable at all.
+
+  const BELOW = GOAL_CENTER_Y + 60; // lower on screen (larger y)
+  const ABOVE = GOAL_CENTER_Y - 60;
+
+  it('prefers the side the goalie is moving toward when moving down', () => {
+    expect(breakClearanceTie([ABOVE, BELOW], 120)).toBe(BELOW);
+  });
+
+  it('prefers the mirrored side when the goalie is moving up', () => {
+    // The mirror is what a no-op tie-break cannot satisfy: any implementation
+    // returning a fixed element of the array fails one of these two.
+    expect(breakClearanceTie([ABOVE, BELOW], -120)).toBe(ABOVE);
+  });
+
+  it('is independent of the order candidates arrive in', () => {
+    expect(breakClearanceTie([BELOW, ABOVE], 120)).toBe(BELOW);
+    expect(breakClearanceTie([ABOVE, BELOW], 120)).toBe(BELOW);
+    expect(breakClearanceTie([BELOW, ABOVE], -120)).toBe(ABOVE);
+    expect(breakClearanceTie([ABOVE, BELOW], -120)).toBe(ABOVE);
+  });
+
+  it('picks the most extreme candidate on the preferred side', () => {
+    const near = GOAL_CENTER_Y + 20;
+    const far = GOAL_CENTER_Y + 90;
+    expect(breakClearanceTie([near, far], 50)).toBe(far);
+    expect(breakClearanceTie([far, near], 50)).toBe(far);
+  });
+
+  it('falls back to the whole set when no candidate is on the preferred side', () => {
+    // Goalie moving down, but every tied candidate is above centre.
+    const a = GOAL_CENTER_Y - 30;
+    const b = GOAL_CENTER_Y - 90;
+    expect(breakClearanceTie([a, b], 200)).toBe(b);
+  });
+
+  it('is deterministic with no goalie motion', () => {
+    const r1 = breakClearanceTie([ABOVE, BELOW], 0);
+    const r2 = breakClearanceTie([BELOW, ABOVE], 0);
+    expect(r1).toBe(r2);
+  });
+
+  it('prefers the candidate furthest from the faked target on the preferred side', () => {
+    const nearFake = GOAL_CENTER_Y + 30;
+    const farFake = GOAL_CENTER_Y + 100;
+    // Goalie moving down, fake high: both candidates qualify, the further one wins.
+    expect(breakClearanceTie([nearFake, farFake], 90, GOAL_TOP + 20)).toBe(farFake);
+  });
+
+  it('handles degenerate input without throwing', () => {
+    expect(breakClearanceTie([], 100)).toBe(GOAL_CENTER_Y);
+    expect(breakClearanceTie([GOAL_CENTER_Y + 5], 100)).toBe(GOAL_CENTER_Y + 5);
+  });
+
+  it('selectBestCandidateY routes exact ties through the velocity rule', () => {
+    const tiedCandidates = [
+      { y: ABOVE, clearance: 42 },
+      { y: BELOW, clearance: 42 },
+      { y: GOAL_CENTER_Y, clearance: 10 }, // strictly worse, must never win
+    ];
+    expect(selectBestCandidateY(tiedCandidates, 120)).toBe(BELOW);
+    expect(selectBestCandidateY(tiedCandidates, -120)).toBe(ABOVE);
+  });
+
+  it('selectBestCandidateY still prefers strictly greater clearance over the tie rule', () => {
+    const candidates = [
+      { y: ABOVE, clearance: 99 },
+      { y: BELOW, clearance: 42 },
+    ];
+    // Goalie moving down would prefer BELOW on a tie, but ABOVE is strictly clearer.
+    expect(selectBestCandidateY(candidates, 120)).toBe(ABOVE);
+  });
+
+  it('selectBestCandidateY is total on empty input', () => {
+    expect(selectBestCandidateY([], 100)).toBe(GOAL_CENTER_Y);
+  });
+});
