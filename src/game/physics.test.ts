@@ -83,6 +83,18 @@ describe('Swept Circle vs Capsule (Requirement 2, 3)', () => {
     expect(hit).not.toBeNull();
     expect(hit!.t).toBe(0);
   });
+
+  it('detects collision with degenerate zero-length capsule (a === b) via fallback (Task 011 Requirement 3)', () => {
+    const a = { x: 50, y: 0 };
+    const b = { x: 50, y: 0 };
+    // Moving from (150, 0) to (-50, 0), radius 5, capsule radius 10.
+    // Circle at (50, 0), contact at x = 50 + 15 = 65. dx = 200. t = 85 / 200 = 0.425.
+    const hit = sweptCircleCapsule({ x: 150, y: 0 }, { x: -50, y: 0 }, 5, a, b, 10);
+    expect(hit).not.toBeNull();
+    expect(hit!.t).toBeCloseTo(0.425, 5);
+    expect(hit!.point.x).toBeCloseTo(60, 5);
+    expect(hit!.point.y).toBeCloseTo(0, 5);
+  });
 });
 
 describe('Swept Circle vs AABB', () => {

@@ -60,6 +60,34 @@ describe('Goalie Movement and Physics (Requirements 2, 3, 4)', () => {
     }
     expect(goalie.pos.y).toBe(550);
   });
+
+  it('sets goalie position directly when input.goaliePos is within bounds (Task 012 Requirement 1)', () => {
+    const goalie = createGoalie({ x: 80, y: 200 });
+    stepGoalie(goalie, { goaliePos: { x: 100, y: 300 } }, 1 / 60);
+    expect(goalie.pos).toEqual({ x: 100, y: 300 });
+    expect(goalie.vel).toEqual({ x: 0, y: 0 });
+  });
+
+  it('clamps goalie position when input.goaliePos is outside bounds (Task 012 Requirement 2)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+
+    // Below minimum bounds: x < 50, y < 50
+    stepGoalie(goalie, { goaliePos: { x: 10, y: 20 } }, 1 / 60);
+    expect(goalie.pos.x).toBe(50);
+    expect(goalie.pos.y).toBe(50);
+
+    // Above maximum bounds: x > 140, y > 550
+    stepGoalie(goalie, { goaliePos: { x: 200, y: 900 } }, 1 / 60);
+    expect(goalie.pos.x).toBe(140);
+    expect(goalie.pos.y).toBe(550);
+  });
+
+  it('uses directional-input movement when input.goaliePos is absent (Task 012 Requirement 3)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+    stepGoalie(goalie, { down: true }, 1 / 60);
+    expect(goalie.vel.y).toBeGreaterThan(0);
+    expect(goalie.pos.y).toBeGreaterThan(300);
+  });
 });
 
 describe('Goalie Stance Machine and Recovery (Requirement 5)', () => {

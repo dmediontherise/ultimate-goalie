@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { CANVAS_HEIGHT, CANVAS_WIDTH, GOAL_BOTTOM, GOAL_TOP, GOAL_X, GOALIE_MAX_SPEED, GOALIE_RADIUS, PUCK_RADIUS } from './constants';
 import { createSim, step } from './sim';
-import { RoundConfig, StickPosition } from '../types';
+import { GoalieStance, RoundConfig, StickPosition } from '../types';
 
 const testConfig: RoundConfig = {
   roundNumber: 1,
@@ -167,6 +167,30 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
   });
 
+  it('detects miss when puck crosses goal line below GOAL_BOTTOM (Task 010 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.goaliePos = { x: 100, y: 100 };
+    sim.puckPos = { x: GOAL_X, y: GOAL_BOTTOM + 50 };
+    sim.puckVel = { x: -100, y: 0 };
+
+    const events = step(sim, {}, 1 / 120);
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+  });
+
+  it('detects miss when puck exits play area out of bounds without crossing goal line (Task 010 Requirement 2)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.goaliePos = { x: 100, y: 300 };
+    sim.puckPos = { x: 300, y: CANVAS_HEIGHT - 10 };
+    sim.puckVel = { x: 0, y: 2000 };
+
+    const events = step(sim, {}, 1 / 120);
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+  });
+
   it('asserts no tunnelling: a puck travelling at 3000 px/s directly at the goalie body is detected as a collision at every simulation step size in [1/30, 1/60, 1/120, 1/240] (Requirement 5)', () => {
     const stepSizes = [1 / 30, 1 / 60, 1 / 120, 1 / 240];
     for (const dt of stepSizes) {
@@ -174,7 +198,10 @@ describe('Simulation core (Requirements 4, 5)', () => {
       sim.hasShot = true;
       sim.goaliePos = { x: 100, y: 300 };
       sim.stickPos = StickPosition.UP;
-      sim.puckPos = { x: 400, y: 300 };
+      // Start at x: 435 so the distance (335 px) is not an exact multiple of step distances (100, 50, 25, 12.5 px).
+      // At dt = 1/30 (travel = 100 px/step), samples land at x: 135 and x: 35, straddling the goalie body
+      // ([71, 129]) without any discrete endpoint landing on the goalie.
+      sim.puckPos = { x: 435, y: 300 };
       sim.puckVel = { x: -3000, y: 0 };
       sim.spin = 0;
 
@@ -188,6 +215,74 @@ describe('Simulation core (Requirements 4, 5)', () => {
       }
       expect(collided).toBe(true);
     }
+  });
+
+  it('interpolates continuous goal-line crossing tGoal and yGoal in a single step (Task 011 Requirement 2)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    // Goal line is at GOAL_X + 5 = 45.
+    // Start puck in front of goal line at x: 100 (prevPos.x >= 45).
+    // In a single step of dt = 1/60 with puckVel = { x: -6000, y: 24000 } and spin = 0:
+    // newPos = { x: 0, y: 500 }.
+    // Crossing x = 45 occurs at tGoal = (100 - 45) / 100 = 0.55.
+    // yGoal = 100 + 0.55 * 400 = 320 (inside GOAL_TOP 170 and GOAL_BOTTOM 430 -> goal!).
+    sim.puckPos = { x: 100, y: 100 };
+    sim.puckVel = { x: -6000, y: 24000 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: false }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(320, 5);
+  });
+
+  it('interpolates continuous goal-line crossing as a miss when yGoal is outside posts (Task 011 Requirement 2)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    // Start at x: 100, y: 100.
+    // In a single step of dt = 1/60 with puckVel = { x: -6000, y: 3000 } and spin = 0:
+    // newPos = { x: 0, y: 150 }.
+    // Crossing x = 45 occurs at tGoal = 0.55.
+    // yGoal = 100 + 0.55 * 50 = 127.5 (< GOAL_TOP 170 -> miss!).
+    sim.puckPos = { x: 100, y: 100 };
+    sim.puckVel = { x: -6000, y: 3000 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(127.5, 5);
+  });
+
+  it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.goaliePos = { x: 100, y: 300 };
+    sim.goalie.stance = GoalieStance.POKE_CHECK;
+    sim.goalie.pos = { x: 100, y: 300 };
+
+    // In POKE_CHECK stance:
+    // body hitbox: a: { x: 100, y: 300 }, b: { x: 100, y: 300 }, radius: 24, kind: 'body'
+    // stick hitbox: a: { x: 120, y: 300 }, b: { x: 175, y: 300 }, radius: 16, kind: 'stick'
+    // Aim puck along x = 85 travelling vertically from y = 200 to y = 350 (dt = 1/60, vel = { x: 0, y: 9000 }).
+    // Distance to stick segment is always >= 120 - 85 = 35 > 16 + 5 = 21 (no stick collision).
+    // Closest approach to body is 100 - 85 = 15 <= 24 + 5 = 29 (collides with body).
+    sim.puckPos = { x: 85, y: 200 };
+    sim.puckVel = { x: 0, y: 9000 };
+
+    const events = step(sim, {}, 1 / 60);
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'body' }]);
   });
 
   it('asserts a puck travelling at 3000 px/s aimed to pass 40 px clear of every goalie hitbox is not reported as a collision (Requirement 6)', () => {
