@@ -12,7 +12,9 @@
     "predeploy": "npm run clean && npm run build",
     "deploy": "gh-pages -d docs",
     "test": "vitest run --reporter=basic",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "setup:browser": "playwright install chromium && ./scripts/install-browser-deps.sh"
   },
   "dependencies": {
     "@google/genai": "^0.10.0",
@@ -20,7 +22,7 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1",
+    "@playwright/test": "^1.63.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.0.0",
