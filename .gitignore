@@ -28,3 +28,8 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# relay bus
+.relay/
+test-results/
+playwright-report/

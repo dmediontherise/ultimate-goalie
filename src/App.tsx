@@ -1,7 +1,10 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import GameCanvas from './components/GameCanvas';
-import { GameState, RoundConfig, StickPosition, SaveType } from './types';
+import { GameState, GoalieStance, HudData, RoundConfig, StickPosition, SaveType } from './types';
+import { getRoundConfig } from './game/rounds';
+import { DIVE_COST, GLOVE_SNAG_COST, POKE_COST } from './game/constants';
 import { getCommentary } from './services/geminiService';
+
 
 // Helper for simulating keys
 const simulateKey = (code: string, type: 'keydown' | 'keyup') => {
@@ -56,50 +59,39 @@ const App: React.FC = () => {
   const [commentary, setCommentary] = useState<string>("");
   const [loadingCommentary, setLoadingCommentary] = useState(false);
 
-  const roundConfig: RoundConfig = useMemo(() => {
-    // Difficulty progression curve
-    const ratio = (currentRound - 1) / 9; // 0 to 1
-    
-    let shotSpeed = 8 + ratio * 12; // Base: 8 to 20
-    let shooterSpeed = 2 + ratio * 4; // Base: 2 to 6
-    let curveFactor = ratio > 0.5 ? (ratio - 0.5) * 2 : 0; // Starts curving at round 5
-    const isSlapShot = currentRound === 4;
-    const hasPowerUp = currentRound === 9;
-    const hasMagnet = currentRound >= 5 && currentRound <= 10;
+  const roundConfig: RoundConfig = useMemo(() => getRoundConfig(currentRound), [currentRound]);
 
-    // Special Round Logic
-    if (isSlapShot) {
-      shotSpeed *= 1.2; // 20% faster
-    }
+  const [hudData, setHudData] = useState<HudData>(() => ({
+    stamina: 1,
+    magnetCharge: 1,
+    hasMagnet: false,
+    magnetActive: false,
+    stance: GoalieStance.STAND,
+    activeTimer: 0,
+    recoveryTimer: 0,
+    canPoke: true,
+    canDive: true,
+    canGloveSnag: true,
+    pokeCost: POKE_COST,
+    diveCost: DIVE_COST,
+    gloveCost: GLOVE_SNAG_COST,
+    pokeCooldown: 0,
+    diveCooldown: 0,
+    gloveCooldown: 0,
+  }));
 
-    if (currentRound === 7) {
-      curveFactor = 1.5; // Heavy curve
-    }
-
-    return {
-      roundNumber: currentRound,
-      shooterSpeed,
-      shotSpeed,
-      aiIntelligence: 0.2 + ratio * 0.8, // 0.2 to 1.0
-      curveFactor,
-      jitter: ratio * 0.8, // Increases erratic movement
-      isSlapShot,
-      hasPowerUp,
-      hasMagnet,
-    };
-  }, [currentRound]);
+  const handleHudUpdate = useCallback((hud: HudData) => {
+    setHudData(hud);
+  }, []);
   
   // Effect for round transition
   const nextRound = useCallback(() => {
-    console.log('App:nextRound - Proceeding to next round');
     setCurrentRound(prev => prev + 1);
     setGameState(GameState.PLAYING);
   }, []);
 
   useEffect(() => {
-    console.log('App:useEffect - gameState changed to', gameState);
     if (gameState === GameState.ROUND_TRANSITION) {
-      console.log('App:useEffect - Starting round transition timer');
       const timer = setTimeout(() => {
         nextRound();
       }, 500); // Duration of the wipe animation
@@ -109,7 +101,6 @@ const App: React.FC = () => {
 
 
   const startGame = () => {
-    console.log('App:startGame - Starting game');
     setScore(0);
     setCurrentRound(1);
     setGameState(GameState.PLAYING);
@@ -122,7 +113,6 @@ const App: React.FC = () => {
 
 
   const handleRoundEnd = useCallback(async (success: boolean, saveType?: SaveType) => {
-    console.log('App:handleRoundEnd - Round ended. Success:', success, 'SaveType:', saveType);
     if (success) {
       if (consecutiveSaves === 5) {
         setOctopusActive(true);
@@ -142,7 +132,6 @@ const App: React.FC = () => {
 
     // Fetch AI Commentary
     setLoadingCommentary(true);
-    console.log('App:handleRoundEnd - Fetching AI commentary');
     
     let shotType = "";
     if (roundConfig.isSlapShot) shotType = "Slap Shot";
@@ -150,13 +139,11 @@ const App: React.FC = () => {
     if (currentRound === 7) shotType = "Curveball";
 
     const text = await getCommentary(currentRound, success, shotType, saveType);
-    console.log('App:handleRoundEnd - Commentary received:', text);
     setCommentary(text);
     setLoadingCommentary(false);
   }, [roundConfig, consecutiveSaves, consecutiveAIScores]);
 
   const proceedToNextOrEnd = useCallback(() => {
-    console.log('App:proceedToNextOrEnd - Proceeding to next round or ending game');
     if (currentRound >= 10) {
       setGameState(GameState.GAME_OVER);
     } else {
@@ -165,7 +152,6 @@ const App: React.FC = () => {
   }, [currentRound]);
 
   const resetGame = useCallback(() => {
-    console.log('App:resetGame - Resetting game');
     setGameState(GameState.MENU);
   }, []);
 
@@ -183,15 +169,141 @@ const App: React.FC = () => {
         
         {/* HUD */}
         {gameState !== GameState.MENU && gameState !== GameState.GAME_OVER && (
-          <div className="absolute top-4 left-4 right-4 flex justify-between text-sm md:text-xl font-mono font-bold z-10 text-slate-800 pointer-events-none select-none">
-            <div className="bg-white/80 px-3 py-1 rounded shadow">Round: {currentRound}/10</div>
-            <div className="bg-white/80 px-3 py-1 rounded shadow">Saves: {score}</div>
+          <div className="absolute top-2.5 left-3 right-3 z-10 pointer-events-none select-none flex flex-col gap-1.5">
+            {/* Top row: Round, Resource Bars, Saves */}
+            <div className="flex items-center justify-between gap-2">
+              {/* Round Badge */}
+              <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-1.5 rounded-lg shadow-md font-mono font-bold text-xs md:text-sm text-white shrink-0">
+                Round: <span className="text-blue-400">{currentRound}</span>/10
+              </div>
+
+              {/* Resource Bars: Stamina and Magnet */}
+              <div className="flex-1 max-w-sm md:max-w-md flex flex-col gap-1 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 md:p-2 rounded-lg shadow-md">
+                {/* Stamina Bar */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] md:text-xs font-bold text-slate-300 w-14 md:w-16 tracking-wider">STAMINA</span>
+                  <div className="flex-1 h-2.5 md:h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                    <div
+                      className={`h-full transition-all duration-75 ${
+                        hudData.stamina > 0.5
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-400'
+                          : hudData.stamina > 0.25
+                          ? 'bg-gradient-to-r from-yellow-500 to-amber-500'
+                          : 'bg-gradient-to-r from-red-600 to-rose-500'
+                      }`}
+                      style={{ width: `${Math.max(0, Math.min(100, hudData.stamina * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] md:text-xs font-mono font-semibold text-slate-300 w-9 text-right">
+                    {Math.round(hudData.stamina * 100)}%
+                  </span>
+                </div>
+
+                {/* Magnet Bar */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] md:text-xs font-bold text-slate-300 w-14 md:w-16 tracking-wider">MAGNET</span>
+                  <div className="flex-1 h-2.5 md:h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                    {roundConfig.hasMagnet ? (
+                      <div
+                        className={`h-full transition-all duration-75 ${
+                          hudData.magnetActive
+                            ? 'bg-gradient-to-r from-cyan-400 to-indigo-400 animate-pulse'
+                            : 'bg-gradient-to-r from-blue-500 to-indigo-600'
+                        }`}
+                        style={{ width: `${Math.max(0, Math.min(100, hudData.magnetCharge * 100))}%` }}
+                      />
+                    ) : (
+                      <div className="h-full bg-slate-700/40 w-full flex items-center justify-center">
+                        <span className="text-[8px] md:text-[9px] text-slate-500 font-medium tracking-wide">LOCKED (R5–10)</span>
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-[10px] md:text-xs font-mono font-semibold text-slate-300 w-9 text-right">
+                    {roundConfig.hasMagnet ? `${Math.round(hudData.magnetCharge * 100)}%` : '—'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Saves Badge */}
+              <div className="bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 px-3 py-1.5 rounded-lg shadow-md font-mono font-bold text-xs md:text-sm text-white shrink-0">
+                Saves: <span className="text-emerald-400">{score}</span>
+              </div>
+            </div>
+
+            {/* Bottom row: Ability Cooldown Badges */}
+            <div className="flex items-center justify-center gap-2 text-[10px] md:text-xs font-mono">
+              {/* Poke Check */}
+              <div className={`px-2 py-0.5 md:px-2.5 md:py-1 rounded-md border flex items-center gap-1.5 shadow-sm transition-colors ${
+                hudData.stance === GoalieStance.POKE_CHECK && hudData.activeTimer > 0
+                  ? 'bg-cyan-900/80 border-cyan-400 text-cyan-200 animate-pulse'
+                  : hudData.pokeCooldown > 0
+                  ? 'bg-slate-800/80 border-slate-600 text-slate-400'
+                  : hudData.stamina < hudData.pokeCost
+                  ? 'bg-slate-900/80 border-amber-800/60 text-amber-400'
+                  : 'bg-slate-900/80 border-cyan-600/70 text-cyan-300'
+              }`}>
+                <span className="font-bold">POKE (E)</span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-black/40">
+                  {hudData.stance === GoalieStance.POKE_CHECK && hudData.activeTimer > 0
+                    ? 'ACTIVE'
+                    : hudData.pokeCooldown > 0
+                    ? `${hudData.pokeCooldown.toFixed(1)}s`
+                    : hudData.stamina < hudData.pokeCost
+                    ? 'LOW NRG'
+                    : 'READY'}
+                </span>
+              </div>
+
+              {/* Desperation Dive */}
+              <div className={`px-2 py-0.5 md:px-2.5 md:py-1 rounded-md border flex items-center gap-1.5 shadow-sm transition-colors ${
+                hudData.stance === GoalieStance.DESPERATION_DIVE && hudData.activeTimer > 0
+                  ? 'bg-amber-900/80 border-amber-400 text-amber-200 animate-pulse'
+                  : hudData.diveCooldown > 0
+                  ? 'bg-slate-800/80 border-slate-600 text-slate-400'
+                  : hudData.stamina < hudData.diveCost
+                  ? 'bg-slate-900/80 border-amber-800/60 text-amber-400'
+                  : 'bg-slate-900/80 border-amber-600/70 text-amber-300'
+              }`}>
+                <span className="font-bold">DIVE (F)</span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-black/40">
+                  {hudData.stance === GoalieStance.DESPERATION_DIVE && hudData.activeTimer > 0
+                    ? 'ACTIVE'
+                    : hudData.diveCooldown > 0
+                    ? `${hudData.diveCooldown.toFixed(1)}s`
+                    : hudData.stamina < hudData.diveCost
+                    ? 'LOW NRG'
+                    : 'READY'}
+                </span>
+              </div>
+
+              {/* Glove Snag */}
+              <div className={`px-2 py-0.5 md:px-2.5 md:py-1 rounded-md border flex items-center gap-1.5 shadow-sm transition-colors ${
+                hudData.stance === GoalieStance.GLOVE_SNAG && hudData.activeTimer > 0
+                  ? 'bg-emerald-900/80 border-emerald-400 text-emerald-200 animate-pulse'
+                  : hudData.gloveCooldown > 0
+                  ? 'bg-slate-800/80 border-slate-600 text-slate-400'
+                  : hudData.stamina < hudData.gloveCost
+                  ? 'bg-slate-900/80 border-amber-800/60 text-amber-400'
+                  : 'bg-slate-900/80 border-emerald-600/70 text-emerald-300'
+              }`}>
+                <span className="font-bold">SNAG (Q)</span>
+                <span className="text-[9px] px-1 py-0.5 rounded bg-black/40">
+                  {hudData.stance === GoalieStance.GLOVE_SNAG && hudData.activeTimer > 0
+                    ? 'ACTIVE'
+                    : hudData.gloveCooldown > 0
+                    ? `${hudData.gloveCooldown.toFixed(1)}s`
+                    : hudData.stamina < hudData.gloveCost
+                    ? 'LOW NRG'
+                    : 'READY'}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Special Round Indicator */}
         {gameState === GameState.PLAYING && (
-          <div className="absolute top-16 w-full text-center pointer-events-none z-10">
+          <div className="absolute top-20 w-full text-center pointer-events-none z-10">
             {roundConfig.isSlapShot && <span className="bg-red-600 text-white px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">⚠️ SLAP SHOT INCOMING</span>}
             {roundConfig.hasPowerUp && <span className="bg-yellow-500 text-black px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">⚡ SUPER SPEED ACTIVE</span>}
             {roundConfig.hasMagnet && <span className="bg-green-500 text-white px-2 py-1 md:px-3 md:py-1 rounded font-bold text-xs md:text-sm shadow animate-pulse">🧲 MAGNET ACTIVE</span>}
@@ -201,20 +313,35 @@ const App: React.FC = () => {
 
         {/* Desktop Controls Overlay */}
         {gameState === GameState.PLAYING && (
-          <div className="hidden md:block absolute bottom-4 right-4 bg-black/50 text-white p-3 rounded text-xs z-10 pointer-events-none">
+          <div className="hidden md:block absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm text-white p-2.5 rounded-lg text-xs z-10 pointer-events-none border border-slate-700/60 shadow-lg select-none">
+            <p className="font-bold text-slate-200 border-b border-slate-700 pb-1 mb-1 tracking-wider">CONTROLS</p>
             <p>Move: <span className="font-bold text-yellow-400">WASD / Arrows</span></p>
-            <p className="mt-1">Stick:</p>
-            <ul className="list-disc list-inside text-slate-300">
-              <li>Up: <span className="font-bold text-yellow-400">Z / 1</span></li>
-              <li>Mid: <span className="font-bold text-yellow-400">X / 2</span></li>
-              <li>Down: <span className="font-bold text-yellow-400">C / 3</span></li>
-            </ul>
+            <p className="mt-1 font-semibold text-slate-300">Stick Position:</p>
+            <div className="grid grid-cols-3 gap-1 text-[11px] text-slate-300">
+              <span>Up: <b className="text-yellow-400">Z / 1</b></span>
+              <span>Mid: <b className="text-yellow-400">X / 2</b></span>
+              <span>Low: <b className="text-yellow-400">C / 3</b></span>
+            </div>
+            <p className="mt-1 font-semibold text-slate-300">Special Moves:</p>
+            <div className="grid grid-cols-1 gap-0.5 text-[11px] text-slate-300">
+              <span>Poke Check: <b className="text-cyan-400">E / 4</b></span>
+              <span>Desperation Dive: <b className="text-amber-400">F / Space / 5</b></span>
+              <span>Glove Snag: <b className="text-emerald-400">Q / R / 6</b></span>
+              <span>Puck Magnet: <b className="text-indigo-400">M / Shift / 7 (Hold)</b></span>
+            </div>
+            <p className="mt-1 text-[10px] text-slate-400">Hitbox Debug: <b className="text-blue-400">H</b></p>
           </div>
         )}
 
         {/* Canvas */}
         {(gameState === GameState.PLAYING || gameState === GameState.ROUND_WON || gameState === GameState.ROUND_LOST) && (
-           <GameCanvas roundConfig={roundConfig} onRoundEnd={handleRoundEnd} hatTrickActive={hatTrickActive} octopusActive={octopusActive} />
+           <GameCanvas
+             roundConfig={roundConfig}
+             onRoundEnd={handleRoundEnd}
+             hatTrickActive={hatTrickActive}
+             octopusActive={octopusActive}
+             onHudUpdate={handleHudUpdate}
+           />
         )}
 
         {/* Menu Screen */}
@@ -222,24 +349,28 @@ const App: React.FC = () => {
           <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center p-4 md:p-8 z-20 relative">
             <div className="absolute inset-0 border-4 border-blue-600 rounded-lg opacity-50 pointer-events-none"></div>
             <h2 className="text-4xl md:text-6xl font-black text-white mb-4 md:mb-8 italic transform -skew-x-12">FACE OFF</h2>
-            <div className="space-y-4 text-center w-full max-w-md">
-              <p className="text-slate-300 text-sm md:text-lg">
-                You are the last line of defense. 
-                Use your stick and body to stop the puck. 
-                The AI gets smarter and faster every round.
+            <div className="space-y-4 text-center w-full max-w-lg">
+              <p className="text-slate-300 text-sm md:text-base">
+                You are the last line of defense. Use your stick positions, special moves
+                (Poke, Dive, Glove Snag), and the puck magnet to protect the net.
+                The shooter gets smarter, dekes, and curves as rounds progress!
               </p>
-              <div className="grid grid-cols-3 gap-2 text-xs md:text-sm text-slate-400 mt-4 bg-slate-900 p-4 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs md:text-sm text-slate-400 mt-4 bg-slate-900/90 border border-slate-700/50 p-3 md:p-4 rounded-lg">
                 <div>
                   <div className="font-bold text-red-400">Round 4</div>
-                  <div>Slap Shots</div>
+                  <div className="text-[11px] text-slate-300">Slap Shots</div>
+                </div>
+                <div>
+                   <div className="font-bold text-indigo-400">Round 5–10</div>
+                   <div className="text-[11px] text-slate-300">Puck Magnet</div>
                 </div>
                 <div>
                    <div className="font-bold text-purple-400">Round 7</div>
-                   <div>Curved Shots</div>
+                   <div className="text-[11px] text-slate-300">Heavy Curve</div>
                 </div>
                 <div>
                    <div className="font-bold text-yellow-400">Round 9</div>
-                   <div>Speed Boost</div>
+                   <div className="text-[11px] text-slate-300">Speed Boost</div>
                 </div>
               </div>
               <div className="py-6">
@@ -307,23 +438,39 @@ const App: React.FC = () => {
 
       {/* Mobile Controls */}
       {(gameState === GameState.PLAYING) && (
-        <div className="w-full max-w-[800px] mt-4 px-4 grid grid-cols-2 gap-8 select-none">
-           {/* Movement D-Pad area */}
-           <div className="grid grid-cols-3 gap-2">
-              <div></div>
-              <TouchButton code="ArrowUp" label="↑" />
-              <div></div>
-              
-              <TouchButton code="ArrowLeft" label="←" />
-              <TouchButton code="ArrowDown" label="↓" />
-              <TouchButton code="ArrowRight" label="→" />
+        <div className="w-full max-w-[800px] mt-4 px-4 flex flex-col gap-3 select-none">
+           {/* Top row: Movement D-Pad + Stick Controls */}
+           <div className="grid grid-cols-2 gap-4">
+              {/* Movement D-Pad area */}
+              <div className="grid grid-cols-3 gap-2">
+                 <div></div>
+                 <TouchButton code="ArrowUp" label="↑" sub="Up" />
+                 <div></div>
+                 
+                 <TouchButton code="ArrowLeft" label="←" sub="Left" />
+                 <TouchButton code="ArrowDown" label="↓" sub="Down" />
+                 <TouchButton code="ArrowRight" label="→" sub="Right" />
+              </div>
+
+              {/* Stick Controls */}
+              <div className="grid grid-rows-3 gap-2">
+                <TouchButton code="Digit1" label="Stick UP" color="bg-orange-700" sub="High Block" />
+                <TouchButton code="Digit2" label="Stick MID" color="bg-orange-600" sub="Standard" />
+                <TouchButton code="Digit3" label="Stick LOW" color="bg-orange-700" sub="Paddle Down" />
+              </div>
            </div>
 
-           {/* Stick Controls */}
-           <div className="grid grid-rows-3 gap-2">
-             <TouchButton code="Digit1" label="Stick UP" color="bg-orange-700" sub="High Block" />
-             <TouchButton code="Digit2" label="Stick MID" color="bg-orange-600" sub="Standard" />
-             <TouchButton code="Digit3" label="Stick LOW" color="bg-orange-700" sub="Paddle Down" />
+           {/* Abilities Row: Poke Check, Desperation Dive, Glove Snag, Magnet */}
+           <div className="grid grid-cols-4 gap-2">
+             <TouchButton code="KeyE" label="POKE" color="bg-cyan-700" sub="Check (E)" />
+             <TouchButton code="KeyF" label="DIVE" color="bg-amber-700" sub="Burst (F)" />
+             <TouchButton code="KeyQ" label="SNAG" color="bg-emerald-700" sub="Glove (Q)" />
+             <TouchButton
+               code="KeyM"
+               label="MAGNET"
+               color={roundConfig.hasMagnet ? "bg-indigo-700" : "bg-slate-700 opacity-50"}
+               sub={roundConfig.hasMagnet ? "Hold (M)" : "Locked (R5+)"}
+             />
            </div>
         </div>
       )}
