@@ -111,6 +111,110 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 1);
   });
 
+  it('changing onHudUpdate prop does not tear down and recreate running simulation', () => {
+    const onRoundEnd = vi.fn();
+    const onHudUpdate1 = vi.fn();
+    const onHudUpdate2 = vi.fn();
+    const createSimSpy = vi.spyOn(simModule, 'createSim');
+
+    // Initial mount
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+          onHudUpdate={onHudUpdate1}
+        />
+      );
+    });
+
+    const callsAfterMount = createSimSpy.mock.calls.length;
+    expect(callsAfterMount).toBe(2);
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+
+    // Re-render with new onHudUpdate, roundConfig held constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+          onHudUpdate={onHudUpdate2}
+        />
+      );
+    });
+
+    // Effect must not have cleaned up or torn down the loop
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+    // Effect must not have re-registered another animation frame
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    // Simulation must not have been recreated by the effect:
+    // exactly one call occurs from component render body, zero from effect
+    expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 1);
+  });
+
+  it('toggling hatTrickActive prop does not tear down and recreate running simulation', () => {
+    const onRoundEnd = vi.fn();
+    const createSimSpy = vi.spyOn(simModule, 'createSim');
+
+    // Initial mount
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const callsAfterMount = createSimSpy.mock.calls.length;
+    expect(callsAfterMount).toBe(2);
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+
+    // Re-render with hatTrickActive toggled to true, roundConfig held constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={true}
+          octopusActive={false}
+        />
+      );
+    });
+
+    // Effect must not have cleaned up or torn down the loop
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+    // Effect must not have re-registered another animation frame
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    // Simulation must not have been recreated by the effect:
+    // exactly one call occurs from component render body, zero from effect
+    expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 1);
+
+    // Re-render with hatTrickActive toggled back to false, roundConfig held constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 2);
+  });
+
   it('changing roundConfig prop causes the loop to reset and recreate simulation', () => {
     const onRoundEnd = vi.fn();
     const createSimSpy = vi.spyOn(simModule, 'createSim');

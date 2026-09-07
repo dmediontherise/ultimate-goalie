@@ -191,6 +191,34 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
   });
 
+  it('detects miss when puck exits play area off top boundary without crossing goal line (Task 014 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.goaliePos = { x: 100, y: 300 };
+    sim.puckPos = { x: 300, y: 10 };
+    sim.puckVel = { x: 0, y: -2000 };
+
+    const events = step(sim, {}, 1 / 120);
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+  });
+
+  // NOTE: this resolves via the goal-line block (sim.ts:223 sets tGoal = 0), NOT the
+  // out-of-bounds check. The `newPos.x < 0` disjunct at sim.ts:252 is unreachable:
+  // goalLineX = GOAL_X + 5 = 45, so newPos.x < 0 always implies newPos.x < goalLineX,
+  // and one of the two goal-line branches always fires first. No test can reach it.
+  it('treats a puck already behind the goal line and below the net as a miss', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.goaliePos = { x: 100, y: 300 };
+    sim.puckPos = { x: 10, y: 550 };
+    sim.puckVel = { x: -2000, y: 0 };
+
+    const events = step(sim, {}, 1 / 120);
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+  });
+
   it('asserts no tunnelling: a puck travelling at 3000 px/s directly at the goalie body is detected as a collision at every simulation step size in [1/30, 1/60, 1/120, 1/240] (Requirement 5)', () => {
     const stepSizes = [1 / 30, 1 / 60, 1 / 120, 1 / 240];
     for (const dt of stepSizes) {
