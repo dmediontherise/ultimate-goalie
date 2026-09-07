@@ -88,6 +88,23 @@ describe('Goalie Movement and Physics (Requirements 2, 3, 4)', () => {
     expect(goalie.vel.y).toBeGreaterThan(0);
     expect(goalie.pos.y).toBeGreaterThan(300);
   });
+
+  it('resets goalie velocity to zero when direct-position input takes over moving goalie (Task 021 Requirement 1)', () => {
+    const goalie = createGoalie({ x: 100, y: 300 });
+    stepGoalie(goalie, { up: true }, 1 / 60);
+    expect(goalie.vel.y).toBeLessThan(0);
+
+    stepGoalie(goalie, { goaliePos: { x: 100, y: 250 } }, 1 / 60);
+    expect(goalie.vel).toEqual({ x: 0, y: 0 });
+  });
+
+  it('preserves fractional coordinates exactly for direct-position input within bounds (Task 021 Requirement 2)', () => {
+    const goalie = createGoalie({ x: 80, y: 200 });
+    stepGoalie(goalie, { goaliePos: { x: 100.37, y: 300.82 } }, 1 / 60);
+    expect(goalie.pos.x).toBe(100.37);
+    expect(goalie.pos.y).toBe(300.82);
+    expect(goalie.pos).toEqual({ x: 100.37, y: 300.82 });
+  });
 });
 
 describe('Goalie Stance Machine and Recovery (Requirement 5)', () => {

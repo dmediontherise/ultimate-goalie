@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Vector2 } from '../types';
 import {
   DEKE_SKILL_THRESHOLD,
   GOAL_BOTTOM,
@@ -347,6 +348,64 @@ describe('Shooter AI (Task 005)', () => {
       }
     }
     expect(dekeTested).toBe(true);
+  });
+
+  it('asserts chooseDekeFinalTarget always places final target within goal mouth across representative goalie positions and faked targets (Task 016 Requirement 1)', () => {
+    const goaliePositions: Vector2[] = [
+      { x: 60, y: GOAL_TOP },
+      { x: 100, y: GOAL_TOP + 25 },
+      { x: 100, y: (GOAL_TOP + GOAL_BOTTOM) / 2 },
+      { x: 100, y: GOAL_BOTTOM - 25 },
+      { x: 60, y: GOAL_BOTTOM },
+      { x: 120, y: 300 },
+      { x: 100, y: 100 },
+      { x: 100, y: 500 },
+    ];
+
+    const goalieVelocities: Vector2[] = [
+      { x: 0, y: 0 },
+      { x: 0, y: -200 },
+      { x: 0, y: 200 },
+    ];
+
+    const fakedTargets: Vector2[] = [
+      { x: GOAL_X, y: GOAL_TOP - 25 },
+      { x: GOAL_X, y: GOAL_TOP + 20 },
+      { x: GOAL_X, y: (GOAL_TOP + GOAL_BOTTOM) / 2 },
+      { x: GOAL_X, y: GOAL_BOTTOM - 20 },
+      { x: GOAL_X, y: GOAL_BOTTOM + 25 },
+    ];
+
+    for (const goaliePos of goaliePositions) {
+      for (const goalieVel of goalieVelocities) {
+        for (const fakedTarget of fakedTargets) {
+          const goalie = createGoalie(goaliePos);
+          goalie.vel = { ...goalieVel };
+          const finalTarget = chooseDekeFinalTarget(fakedTarget, goalie);
+
+          expect(finalTarget.y).toBeGreaterThanOrEqual(GOAL_TOP);
+          expect(finalTarget.y).toBeLessThanOrEqual(GOAL_BOTTOM);
+        }
+      }
+    }
+  });
+
+  it('asserts chooseDekeFinalTarget reaches near-post sampling margins and targets GOAL_X (Task 020 Requirements 1, 2, 3)', () => {
+    // Requirement 1: Goalie parked low with low fake target -> maximum clearance is at top margin (GOAL_TOP + 15)
+    const lowGoalie = createGoalie({ x: 100, y: GOAL_BOTTOM });
+    const lowFakedTarget = { x: GOAL_X, y: GOAL_BOTTOM };
+    const topTarget = chooseDekeFinalTarget(lowFakedTarget, lowGoalie);
+
+    expect(topTarget.y).toBeLessThanOrEqual(GOAL_TOP + 20);
+    expect(topTarget.x).toBe(GOAL_X);
+
+    // Requirement 2: Goalie parked high with high fake target -> maximum clearance is at bottom margin (GOAL_BOTTOM - 15)
+    const highGoalie = createGoalie({ x: 100, y: GOAL_TOP });
+    const highFakedTarget = { x: GOAL_X, y: GOAL_TOP };
+    const bottomTarget = chooseDekeFinalTarget(highFakedTarget, highGoalie);
+
+    expect(bottomTarget.y).toBeGreaterThanOrEqual(GOAL_BOTTOM - 20);
+    expect(bottomTarget.x).toBe(GOAL_X);
   });
 });
 

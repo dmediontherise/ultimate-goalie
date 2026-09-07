@@ -292,6 +292,115 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(sim.puckPos.y).toBeCloseTo(127.5, 5);
   });
 
+  it('detects miss when puck crosses goal line with yGoal exactly equal to GOAL_TOP (Task 015 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    sim.puckPos = { x: 100, y: GOAL_TOP };
+    sim.puckVel = { x: -6000, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(GOAL_TOP, 5);
+  });
+
+  it('detects miss when puck crosses goal line with yGoal exactly equal to GOAL_BOTTOM (Task 015 Requirement 2)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 50 };
+    sim.goaliePos = { x: 100, y: 50 };
+
+    sim.puckPos = { x: 100, y: GOAL_BOTTOM };
+    sim.puckVel = { x: -6000, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 50 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: true, saveType: 'miss' }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(GOAL_BOTTOM, 5);
+  });
+
+  it('asserts puck starting behind goal line with angled velocity uses starting y for tGoal=0 (Task 015 Requirement 3)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    const startY = 300;
+    sim.puckPos = { x: 20, y: startY };
+    sim.puckVel = { x: -100, y: 12000 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: false }]);
+    expect(sim.puckPos.x).toBe(GOAL_X + 5);
+    expect(sim.puckPos.y).toBe(startY);
+  });
+
+  it('detects goal when yGoal lands strictly inside posts within 1px of GOAL_TOP (Task 019 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    sim.puckPos = { x: 100, y: GOAL_TOP + 0.5 };
+    sim.puckVel = { x: -6000, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: false }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(GOAL_TOP + 0.5, 5);
+  });
+
+  it('detects goal when yGoal lands strictly inside posts within 1px of GOAL_BOTTOM (Task 019 Requirement 2)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 50 };
+    sim.goaliePos = { x: 100, y: 50 };
+
+    sim.puckPos = { x: 100, y: GOAL_BOTTOM - 0.5 };
+    sim.puckVel = { x: -6000, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 50 } }, 1 / 60);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: false }]);
+    expect(sim.puckPos.x).toBeCloseTo(GOAL_X + 5, 5);
+    expect(sim.puckPos.y).toBeCloseTo(GOAL_BOTTOM - 0.5, 5);
+  });
+
+  it('starts a step with prevPos.x exactly equal to goalLineX and crosses behind line (Task 019 Requirement 3)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    sim.puckPos = { x: GOAL_X + 5, y: 300 };
+    sim.puckVel = { x: -100, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 120);
+
+    expect(sim.roundEnded).toBe(true);
+    expect(events).toEqual([{ type: 'round-end', success: false }]);
+    expect(sim.puckPos.x).toBe(GOAL_X + 5);
+    expect(sim.puckPos.y).toBe(300);
+  });
+
   it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
     const sim = createSim(testConfig, 1);
     sim.hasShot = true;

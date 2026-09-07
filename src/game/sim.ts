@@ -249,7 +249,11 @@ function integratePuckAndCollide(state: SimState, dt: number): SimEvent[] {
   }
 
   // 5. Out of bounds
-  if (newPos.x < 0 || newPos.y < 0 || newPos.y > CANVAS_HEIGHT) {
+  // Only the vertical edges are checked here. A puck with newPos.x < 0 can never
+  // reach this point: goalLineX = GOAL_X + 5 = 45, so newPos.x < 0 implies
+  // newPos.x < goalLineX, and whichever side prevPos.x falls on, one of the two
+  // goal-line branches above sets tGoal and returns first.
+  if (newPos.y < 0 || newPos.y > CANVAS_HEIGHT) {
     state.roundEnded = true;
     state.puckPos = newPos;
     state.puckTrail.push({ ...state.puckPos });

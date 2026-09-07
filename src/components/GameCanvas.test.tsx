@@ -36,6 +36,10 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     requestAnimSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => nextRafId++);
     cancelAnimSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
 
+    const mockGradient = {
+      addColorStop: vi.fn(),
+    };
+
     const mockCtx = {
       beginPath: vi.fn(),
       arc: vi.fn(),
@@ -52,6 +56,9 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
       fillText: vi.fn(),
       clearRect: vi.fn(),
       scale: vi.fn(),
+      translate: vi.fn(),
+      createLinearGradient: vi.fn(() => mockGradient),
+      createRadialGradient: vi.fn(() => mockGradient),
       drawImage: vi.fn(),
       setLineDash: vi.fn(),
       measureText: vi.fn(() => ({ width: 0 })),
@@ -213,6 +220,107 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     expect(cancelAnimSpy).not.toHaveBeenCalled();
     expect(requestAnimSpy).toHaveBeenCalledTimes(1);
     expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 2);
+  });
+
+  it('toggling octopusActive prop does not tear down and recreate running simulation (Task 018 Requirement 1)', () => {
+    const onRoundEnd = vi.fn();
+    const createSimSpy = vi.spyOn(simModule, 'createSim');
+
+    // Initial mount
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const callsAfterMount = createSimSpy.mock.calls.length;
+    expect(callsAfterMount).toBe(2);
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+
+    // Re-render with octopusActive toggled to true, roundConfig held constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={true}
+        />
+      );
+    });
+
+    // Effect must not have cleaned up or torn down the loop
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+    // Effect must not have re-registered another animation frame
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    // Simulation must not have been recreated by the effect:
+    // exactly one call occurs from component render body, zero from effect
+    expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 1);
+
+    // Re-render with octopusActive toggled back to false, roundConfig held constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    expect(cancelAnimSpy).not.toHaveBeenCalled();
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 2);
+  });
+
+  it('invoking animation frame uses the updated onHudUpdate callback after re-render (Task 018 Requirement 2)', () => {
+    const onRoundEnd = vi.fn();
+    const onHudUpdate1 = vi.fn();
+    const onHudUpdate2 = vi.fn();
+
+    // Initial mount with onHudUpdate1
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+          onHudUpdate={onHudUpdate1}
+        />
+      );
+    });
+
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+
+    // Re-render with onHudUpdate2
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+          onHudUpdate={onHudUpdate2}
+        />
+      );
+    });
+
+    // Drive one animation frame
+    act(() => {
+      frameCallback(performance.now() + 16);
+    });
+
+    expect(onHudUpdate1).not.toHaveBeenCalled();
+    expect(onHudUpdate2).toHaveBeenCalledTimes(1);
   });
 
   it('changing roundConfig prop causes the loop to reset and recreate simulation', () => {
