@@ -22,14 +22,14 @@ describe('Goalie Movement and Physics (Requirements 2, 3, 4)', () => {
       stepGoalie(goalie, { right: true }, dt);
     }
     const currentSpeed = Math.hypot(goalie.vel.x, goalie.vel.y);
-    expect(currentSpeed).toBeGreaterThanOrEqual(0.9 * GOALIE_MAX_SPEED);
+    expect(currentSpeed).toBeGreaterThanOrEqual(216); // 90% of max speed 240
 
     // 2. Release input and decelerate for 0.20s
     for (let t = 0; t < 0.20; t += dt) {
       stepGoalie(goalie, {}, dt);
     }
     const stoppedSpeed = Math.hypot(goalie.vel.x, goalie.vel.y);
-    expect(stoppedSpeed).toBeLessThan(0.05 * GOALIE_MAX_SPEED);
+    expect(stoppedSpeed).toBeLessThan(12); // 5% of max speed 240
   });
 
   it('clamps goalie position to bounds [50, 140] on x and [50, 550] on y (Requirement 4)', () => {
@@ -137,7 +137,7 @@ describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
 
     stepGoalie(goalie, { pokeCheck: true }, 1 / 120);
     expect(goalie.stance).toBe(GoalieStance.POKE_CHECK);
-    expect(goalie.stamina).toBeCloseTo(initialStamina - POKE_COST, 2);
+    expect(goalie.stamina).toBeCloseTo(0.75, 2); // 1.0 - 0.25 poke cost
 
     const hitboxes = getHitboxes(goalie);
     const stick = hitboxes.find(h => h.kind === 'stick');
@@ -153,7 +153,7 @@ describe('Goalie Abilities and Stamina (Requirements 7, 8, 9, 10)', () => {
     stepGoalie(goalie, { dive: true, up: true }, 1 / 120);
     expect(goalie.stance).toBe(GoalieStance.DESPERATION_DIVE);
     expect(goalie.vel.y).toBeLessThan(-300); // large upward impulse
-    expect(goalie.stamina).toBeCloseTo(initialStamina - DIVE_COST, 2);
+    expect(goalie.stamina).toBeCloseTo(0.55, 2); // 1.0 - 0.45 dive cost
 
     const hitboxes = getHitboxes(goalie);
     expect(hitboxes.length).toBe(1);

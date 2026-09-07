@@ -401,6 +401,26 @@ describe('Simulation core (Requirements 4, 5)', () => {
     expect(sim.puckPos.y).toBe(300);
   });
 
+  it('does not register a goal-line crossing when puck lands exactly on goalLineX (Task 026 Requirement 1)', () => {
+    const sim = createSim(testConfig, 1);
+    sim.hasShot = true;
+    sim.spin = 0;
+    sim.goalie.pos = { x: 100, y: 550 };
+    sim.goaliePos = { x: 100, y: 550 };
+
+    // With goalLineX = GOAL_X + 5 = 45, start puck at x = 55 with vel.x = -1200 and dt = 1/120:
+    // newPos.x = 55 + (-1200) * (1 / 120) = 45 === goalLineX.
+    sim.puckPos = { x: 55, y: 300 };
+    sim.puckVel = { x: -1200, y: 0 };
+
+    const events = step(sim, { goaliePos: { x: 100, y: 550 } }, 1 / 120);
+
+    expect(sim.roundEnded).toBe(false);
+    expect(events).toEqual([]);
+    expect(sim.puckPos.x).toBe(GOAL_X + 5);
+    expect(sim.puckPos.y).toBe(300);
+  });
+
   it('detects body collision against degenerate zero-length capsule in POKE_CHECK stance (Task 011 Requirement 3)', () => {
     const sim = createSim(testConfig, 1);
     sim.hasShot = true;
