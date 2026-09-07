@@ -5,6 +5,7 @@ import {
   DEKE_SKILL_THRESHOLD,
   ESTIMATED_FLIGHT_TIME,
   GOAL_BOTTOM,
+  GOAL_CENTER_Y,
   GOAL_TOP,
   GOAL_X,
   SHOOTER_MAX_RELEASE_DIST_HIGH_SKILL,
@@ -35,7 +36,7 @@ export interface ShooterStepResult {
  */
 export function calculateClearance(target: Vector2, goalie: GoalieState): number {
   const fullGoalie: GoalieState = {
-    pos: goalie.pos ?? { x: 100, y: 300 },
+    pos: goalie.pos ?? { x: 100, y: GOAL_CENTER_Y },
     vel: goalie.vel ?? { x: 0, y: 0 },
     stance: goalie.stance ?? GoalieStance.STAND,
     stickPos: goalie.stickPos ?? StickPosition.STRAIGHT,
@@ -93,7 +94,7 @@ export function chooseTarget(
     // If clearance is strictly better, or equal tie broken in direction of goalie vel
     const goalieVy = goalie.vel?.y ?? 0;
     const isTie = Math.abs(clearance - maxClearance) < 1e-4;
-    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - 300) === Math.sign(goalieVy);
+    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - GOAL_CENTER_Y) === Math.sign(goalieVy);
 
     if (clearance > maxClearance || preferByVel) {
       maxClearance = clearance;
@@ -204,7 +205,7 @@ export function chooseDekeFinalTarget(fakedTarget: Vector2, goalie: GoalieState)
   const yMin = GOAL_TOP + 15;
   const yMax = GOAL_BOTTOM - 15;
   const numCandidates = 40;
-  const fakeY = fakedTarget?.y ?? (GOAL_TOP + GOAL_BOTTOM) / 2;
+  const fakeY = fakedTarget?.y ?? GOAL_CENTER_Y;
 
   let bestY = (yMin + yMax) / 2;
   let maxClearance = -Infinity;
@@ -222,7 +223,7 @@ export function chooseDekeFinalTarget(fakedTarget: Vector2, goalie: GoalieState)
 
     const goalieVy = goalie.vel?.y ?? 0;
     const isTie = Math.abs(clearance - maxClearance) < 1e-4;
-    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - 300) === Math.sign(goalieVy);
+    const preferByVel = isTie && goalieVy !== 0 && Math.sign(candidateY - GOAL_CENTER_Y) === Math.sign(goalieVy);
     const preferByDist = isTie && !preferByVel && diff > Math.abs(bestY - fakeY);
 
     if (clearance > maxClearance || preferByVel || preferByDist) {

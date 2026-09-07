@@ -3,6 +3,7 @@ import { Vector2 } from '../types';
 import {
   DEKE_SKILL_THRESHOLD,
   GOAL_BOTTOM,
+  GOAL_CENTER_Y,
   GOAL_TOP,
   GOAL_X,
   GOALIE_MAX_SPEED,
@@ -30,7 +31,7 @@ import {
 } from './shooter';
 
 describe('Shooter AI (Task 005)', () => {
-  const goalCenter = (GOAL_TOP + GOAL_BOTTOM) / 2; // 300
+  const goalCenter = GOAL_CENTER_Y;
 
   // Requirement 1: Pure functions with injected rng and no globals
   it('chooseTarget and stepShooter are pure and reference no globals', () => {
@@ -199,13 +200,13 @@ describe('Shooter AI (Task 005)', () => {
     expect(SNAP_SHOT_SPEED_MULT).toBeGreaterThan(WRIST_SHOT_SPEED_MULT);
     expect(WRIST_SHOT_SPEED_MULT).toBe(1.0);
 
-    expect(getShotWindup('slap')).toBe(SLAP_SHOT_WINDUP);
-    expect(getShotWindup('snap')).toBe(SNAP_SHOT_WINDUP);
-    expect(getShotWindup('wrist')).toBe(WRIST_SHOT_WINDUP);
+    expect(getShotWindup('slap')).toBe(0.5);
+    expect(getShotWindup('snap')).toBe(0.2);
+    expect(getShotWindup('wrist')).toBe(0.1);
 
-    expect(getShotSpeedMultiplier('slap')).toBe(SLAP_SHOT_SPEED_MULT);
-    expect(getShotSpeedMultiplier('snap')).toBe(SNAP_SHOT_SPEED_MULT);
-    expect(getShotSpeedMultiplier('wrist')).toBe(WRIST_SHOT_SPEED_MULT);
+    expect(getShotSpeedMultiplier('slap')).toBe(1.3);
+    expect(getShotSpeedMultiplier('snap')).toBe(1.1);
+    expect(getShotSpeedMultiplier('wrist')).toBe(1.0);
 
     const rng = createRng(1);
     expect(selectShotType(0.1, true, 200, rng)).toBe('slap');
@@ -406,6 +407,23 @@ describe('Shooter AI (Task 005)', () => {
 
     expect(bottomTarget.y).toBeGreaterThanOrEqual(GOAL_BOTTOM - 20);
     expect(bottomTarget.x).toBe(GOAL_X);
+  });
+
+  it('asserts GOAL_CENTER_Y derivation holds from goal geometry (Task 024 Requirement 5)', () => {
+    expect(GOAL_CENTER_Y).toBe((GOAL_TOP + GOAL_BOTTOM) / 2);
+    expect(GOAL_CENTER_Y).toBe(300);
+  });
+
+  it('asserts chooseTarget at skill 1.0 against goalie parked high returns target in lower half of goal mouth (Task 024 Requirement 6)', () => {
+    const rng = createRng(42);
+    // Park goalie high in the mouth (above GOAL_CENTER_Y)
+    const highGoalie = createGoalie({ x: 100, y: GOAL_TOP + 30 });
+    const target = chooseTarget(highGoalie, 1.0, rng);
+
+    expect(target.x).toBe(GOAL_X);
+    // Lower half of the goal mouth is strictly below GOAL_CENTER_Y and within GOAL_BOTTOM
+    expect(target.y).toBeGreaterThan(GOAL_CENTER_Y);
+    expect(target.y).toBeLessThanOrEqual(GOAL_BOTTOM - 15);
   });
 });
 

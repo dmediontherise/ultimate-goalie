@@ -66,4 +66,39 @@ describe('Accumulator (Requirement 6)', () => {
     expect(stepCount).toBe(3);
     expect(acc.time).toBe(0);
   });
+
+  it('produces identical step counts for sequences [1/60 x 10], [1/30 x 10], and [1.0] (Task 022 Requirement 3)', () => {
+    const runSequence = (deltas: number[]): number => {
+      const acc = createAccumulator();
+      let steps = 0;
+      for (const dt of deltas) {
+        advanceAccumulator(acc, dt, () => {
+          steps++;
+        });
+      }
+      return steps;
+    };
+
+    // [1/60 x 10]: 10 frames of 1/60s -> 2 steps per frame = 20 steps
+    const seq60 = Array(10).fill(1 / 60);
+    expect(runSequence(seq60)).toBe(20);
+
+    // [1/30 x 10]: 10 frames of 1/30s -> 4 steps per frame = 40 steps
+    const seq30 = Array(10).fill(1 / 30);
+    expect(runSequence(seq30)).toBe(40);
+
+    // [1.0]: 1 frame of 1.0s clamped to 0.25s -> 30 steps
+    expect(runSequence([1.0])).toBe(30);
+  });
+
+  it('yields at most 30 steps, not 120, for a single 1.0s frame delta (Task 022 Requirement 4)', () => {
+    const acc = createAccumulator();
+    let steps = 0;
+    advanceAccumulator(acc, 1.0, () => {
+      steps++;
+    });
+    expect(steps).toBeLessThanOrEqual(30);
+    expect(steps).not.toBe(120);
+    expect(steps).toBe(30);
+  });
 });

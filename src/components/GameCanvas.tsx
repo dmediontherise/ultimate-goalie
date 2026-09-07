@@ -7,6 +7,12 @@ import {
   MAGNET_RADIUS,
   POKE_COST,
 } from '../game/constants';
+import {
+  advanceAccumulator,
+  createAccumulator,
+  FIXED_DT,
+  MAX_ACCUMULATED_TIME,
+} from '../game/accumulator';
 import { createSim, step, SimEvent, SimInput, SimState } from '../game/sim';
 import { GoalieStance, HudData, RoundConfig, SaveType, StickPosition, Vector2 } from '../types';
 import { drawIce, NetRippleState } from '../game/render/ice';
@@ -29,10 +35,6 @@ export interface GameCanvasProps {
   octopusActive: boolean;
   onHudUpdate?: (hud: HudData) => void;
 }
-
-
-const FIXED_DT = 1 / 120;
-const MAX_ACCUMULATOR_CLAMP = 0.25;
 
 interface RenderStateSnapshot {
   puckPos: Vector2;
@@ -142,7 +144,7 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     netRipple.current = { amplitude: 0, timer: 1, duration: 0.8 };
 
     let lastTime = performance.now();
-    let accumulator = 0;
+    const accumulator = createAccumulator();
 
     const drawHats = (c: CanvasRenderingContext2D) => {
       hats.current.forEach(hat => {
@@ -329,17 +331,13 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
     canvas.addEventListener('touchend', handleTouchEnd);
 
     const frame = (now: number) => {
-      let frameTime = (now - lastTime) / 1000;
+      const frameDelta = (now - lastTime) / 1000;
       lastTime = now;
-      if (frameTime > MAX_ACCUMULATOR_CLAMP) {
-        frameTime = MAX_ACCUMULATOR_CLAMP;
-      }
-      accumulator += frameTime;
+      const frameTime = Math.min(frameDelta, MAX_ACCUMULATED_TIME);
 
       let roundEndEvent: SimEvent | null = null;
 
-      while (accumulator >= FIXED_DT) {
-        accumulator -= FIXED_DT;
+      advanceAccumulator(accumulator, frameDelta, (dt) => {
         if (!simRef.current.roundEnded) {
           prevRenderState.current = {
             puckPos: { ...simRef.current.puckPos },
@@ -401,19 +399,18 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
                   magnet: magnetHeld,
                 };
 
-          const events = step(simRef.current, input, FIXED_DT);
+          const events = step(simRef.current, input, dt);
           const endEvent = events.find(ev => ev.type === 'round-end');
           if (endEvent) {
             roundEndEvent = endEvent;
             handleImpact(endEvent, simRef.current);
-            accumulator = 0;
-            break;
+            return true;
           }
         }
-      }
+      });
 
       // Requirement 2: Sub-step render interpolation fraction
-      const alpha = Math.max(0, Math.min(1, accumulator / FIXED_DT));
+      const alpha = Math.max(0, Math.min(1, accumulator.time / FIXED_DT));
 
       const renderPuckPos = simRef.current.roundEnded
         ? simRef.current.puckPos
@@ -578,8 +575,9 @@ const GameCanvas: React.FC<GameCanvasProps> = ({
 
       ctx.restore();
 
-      if (roundEndEvent) {
-        onRoundEndRef.current(roundEndEvent.success, roundEndEvent.saveType);
+      const endEvent = roundEndEvent as SimEvent | null;
+      if (endEvent) {
+        onRoundEndRef.current(endEvent.success, endEvent.saveType);
         return;
       }
 

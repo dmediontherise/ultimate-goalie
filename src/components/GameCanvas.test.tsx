@@ -323,6 +323,59 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     expect(onHudUpdate2).toHaveBeenCalledTimes(1);
   });
 
+  it('invoking animation frame uses the updated onRoundEnd callback when round ends after re-render (Task 025 Requirements 1, 2)', () => {
+    const onRoundEnd1 = vi.fn();
+    const onRoundEnd2 = vi.fn();
+
+    // Configure createSim to produce a sim where puck enters goal mouth across the goal line
+    const realCreateSim = simModule.createSim;
+    vi.spyOn(simModule, 'createSim').mockImplementation((config, seed) => {
+      const sim = realCreateSim(config, seed);
+      sim.hasShot = true;
+      sim.goaliePos = { x: 100, y: 100 };
+      sim.puckPos = { x: 40, y: 300 };
+      sim.puckVel = { x: -100, y: 0 };
+      return sim;
+    });
+
+    // Initial mount with onRoundEnd1
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd1}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    expect(requestAnimSpy).toHaveBeenCalledTimes(1);
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+
+    // Re-render with onRoundEnd2, holding roundConfig constant
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd2}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    // Drive one animation frame (step runs, detects goal scored, triggers round-end)
+    act(() => {
+      frameCallback(performance.now() + 16);
+    });
+
+    // The updated onRoundEnd2 must be invoked with round result, not the stale onRoundEnd1
+    expect(onRoundEnd1).not.toHaveBeenCalled();
+    expect(onRoundEnd2).toHaveBeenCalledTimes(1);
+    expect(onRoundEnd2).toHaveBeenCalledWith(false, undefined);
+  });
+
   it('changing roundConfig prop causes the loop to reset and recreate simulation', () => {
     const onRoundEnd = vi.fn();
     const createSimSpy = vi.spyOn(simModule, 'createSim');
@@ -367,5 +420,34 @@ describe('GameCanvas loop dependency regression (Task 009)', () => {
     expect(requestAnimSpy).toHaveBeenCalledTimes(2);
     // Simulation recreated in effect (calls increase by 2: render body + effect re-init)
     expect(createSimSpy).toHaveBeenCalledTimes(callsAfterMount + 2);
+  });
+
+  it('clamps a 1.0s frame delta to at most 30 sim steps in running GameCanvas loop (Task 022 Requirement 4)', () => {
+    const onRoundEnd = vi.fn();
+    const stepSpy = vi.spyOn(simModule, 'step');
+
+    act(() => {
+      root.render(
+        <GameCanvas
+          roundConfig={initialConfig}
+          onRoundEnd={onRoundEnd}
+          hatTrickActive={false}
+          octopusActive={false}
+        />
+      );
+    });
+
+    const frameCallback = requestAnimSpy.mock.calls[0][0];
+    stepSpy.mockClear();
+
+    // Drive one frame with a 1.0s delta (background tab catchup)
+    act(() => {
+      frameCallback(performance.now() + 1000);
+    });
+
+    // Clamp limits 1.0s to 0.25s: 0.25 / (1/120) = 30 steps max, not 120
+    expect(stepSpy).toHaveBeenCalledTimes(30);
+    expect(stepSpy.mock.calls.length).toBeLessThanOrEqual(30);
+    expect(stepSpy.mock.calls.length).not.toBe(120);
   });
 });
