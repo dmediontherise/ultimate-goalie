@@ -8,6 +8,15 @@ describe('Graphics & Renderer (Task 006)', () => {
   it('draws capsules with finite geometry and valid paths', () => {
     const ctx = {
       beginPath: vi.fn(),
+      quadraticCurveTo: vi.fn(),
+      clip: vi.fn(),
+      ellipse: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
       arc: vi.fn(),
       closePath: vi.fn(),
       fill: vi.fn(),
@@ -32,18 +41,20 @@ describe('Graphics & Renderer (Task 006)', () => {
 
     const ctx = {
       beginPath: vi.fn(),
-      arc: vi.fn(),
+      quadraticCurveTo: vi.fn(),
+      clip: vi.fn(),
       ellipse: vi.fn(),
-      fill: vi.fn(),
-      stroke: vi.fn(),
-      fillRect: vi.fn(),
-      strokeRect: vi.fn(),
       moveTo: vi.fn(),
       lineTo: vi.fn(),
-      closePath: vi.fn(),
+      fillRect: vi.fn(),
+      fillText: vi.fn(),
       save: vi.fn(),
       restore: vi.fn(),
-      fillText: vi.fn(),
+      arc: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      strokeRect: vi.fn(),
+      closePath: vi.fn(),
     } as unknown as CanvasRenderingContext2D;
 
     drawGoalie(
